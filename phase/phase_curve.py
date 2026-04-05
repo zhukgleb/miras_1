@@ -38,6 +38,23 @@ def nearest_mag(target_dates, obs_dates, obs_mags):
     return result['mag'].values
 
 
+def make_phase(start_jd=2457616.7870, period=266.028084):
+    phase_points = []
+    for i in range(400):
+        phase_point = start_jd - period / 10
+        phase_points.append(phase_point)
+        start_jd = phase_point
+
+    return phase_points
+
+
+def calculate_phase(jd):
+    period = 266.028084
+    epoh = 2457616.7870
+    diff = abs(epoh - jd)
+    raw_phase =  diff / period 
+    return raw_phase % 1
+    
 
 
 def plot(data: pd.DataFrame):
@@ -51,6 +68,11 @@ def plot(data: pd.DataFrame):
         nearest_m = nearest_mag(spectra_jd, date, m)
 
         plt.title("Observations of R Cam")
+
+        ph = make_phase()
+        print(ph)
+        ax.scatter(ph, [8 for x in ph], label='phase')
+
         ax.scatter(date, m, color="black", alpha=0.5, s=40, label="AAVSO data")    
         ax.scatter(spectra_jd,nearest_m, marker='X', s=200, color="crimson", label='NES Spectra')
         ax.set_xlim((2455580, 2457300))
@@ -63,8 +85,10 @@ def plot(data: pd.DataFrame):
         fig.tight_layout()  
         plt.show()
 
+
+
 if __name__ == "__main__":
-    d_v = import_data("lightcurve.txt")
-    plot(d_v)
-    
-    
+    # d_v = import_data("lightcurve.txt")
+    # plot(d_v)
+    phase = calculate_phase(2457616.7870 - 100000)    
+    print(phase)
