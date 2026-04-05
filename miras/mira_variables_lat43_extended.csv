@@ -1,0 +1,11 @@
+Name,Constellation,RA (J2000),Dec (J2000),Vmag range,Period (days),Visibility,ΔV (mag),VSX link
+S Cep,Cepheus,22h13m26s,+78°44′39″,7.4–12.9,486,Circumpolar,5.5,https://www.aavso.org/vsx/index.php?view=detail.top&oid=33069
+T Cep,Cepheus,21h09m32s,+68°29′28″,5.2–11.3,388,Circumpolar,6.1,https://www.aavso.org/vsx/index.php?view=detail.top&oid=33979
+S Cas,Cassiopeia,01h19m42s,+72°36′41″,7.9–16.1,612,Circumpolar,8.2,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32791
+R Cas,Cassiopeia,23h58m25s,+51°23′19″,4.4–13.5,434,Circumpolar,9.1,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32674
+R And,Andromeda,00h24m02s,+38°34′38″,5.8–14.9,409,Winter,9.1,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32642
+R Tri,Triangulum,02h22m57s,+33°15′37″,6.2–11.7,267,Winter,5.5,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32661
+ο Cet (Mira),Cetus,02h19m21s,-02°58′40″,2.0–10.1,332,Winter,8.1,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32916
+R Aur,Auriga,05h17m36s,+53°35′44″,6.7–13.9,458,Winter,7.2,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32687
+U Ori,Orion,05h55m49s,+20°10′31″,4.8–13.0,377,Winter,8.2,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32946
+R Gem,Gemini,07h07m20s,+22°42′14″,6.0–14.0,370,Winter,8.0,https://www.aavso.org/vsx/index.php?view=detail.top&oid=32694
