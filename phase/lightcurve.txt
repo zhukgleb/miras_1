@@ -4326,6 +4326,8 @@ JD	Magnitude	Uncertainty	HQuncertainty	Band	Observer Code	Comment Code(s)	Comp S
 2425594.0	10.8			Vis.	NAC								Z				R CAM	KNVWS	STD				BAAVSS
 2425595.0	11.5			Vis.	LWM								Z				R CAM	BAA-VSS	STD				BAAVSS
 2425595.0	11.2			Vis.	BCAC								Z				R CAM	BAA-VSS	STD				BAAVSS
+2425597.0	10.8			Vis.	WHH								Z				R CAM	BAA-VSS	STD				BAAVSS
+2425597.0	10.8			Vis.	BCAC								Z				R CAM	BAA-VSS	STD				BAAVSS
 2425598.0	11.2			Vis.	SARF								Z				R CAM	BAA-VSS	STD				BAAVSS
 2425598.0	11.03			Vis.	BNA								Z				R CAM	BAA-VSS	STD				BAAVSS
 2425601.0	10.7			Vis.	BCAC								Z				R CAM	BAA-VSS	STD				BAAVSS
