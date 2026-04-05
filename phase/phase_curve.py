@@ -12,21 +12,56 @@ def import_data(path: str):
 
     return data_vis
 
-def try_convert(x):
-    try:
-        return float(x)
-    except (ValueError, TypeError):
-        return np.nan
-    
+
+def import_spectra(path: str):
+    dates = np.genfromtxt(path)
+    jd = dates[:, 2]
+    return jd    
     
 
+def nearest_mag(target_dates, obs_dates, obs_mags):
+
+    obs_df = pd.DataFrame({
+        'date': obs_dates,
+        'mag': obs_mags
+    }).sort_values('date')
+    
+    target_df = pd.DataFrame({'date': target_dates})
+    
+    result = pd.merge_asof(
+        target_df.sort_values('date'),
+        obs_df,
+        on='date',
+        direction='nearest'
+    )
+    
+    return result['mag'].values
+
+
+
+
 def plot(data: pd.DataFrame):
-    fig, ax = plt.subplots()
-    date = data["JD"].to_numpy()
-    # m = data["Magnitude"].to_numpy(dtype=np.float16, na_value="-1", numeric_only=True)
-    m = pd.to_numeric(data["Magnitude"], errors="coerce")
-    ax.plot(date, m)
-    plt.show()
+    with plt.style.context('science'):
+        fig, ax = plt.subplots(figsize=(5, 5))
+        date = pd.to_numeric(data["JD"], errors="coerce")
+        # m = data["Magnitude"].to_numpy(dtype=np.float16, na_value="-1", numeric_only=True)
+        m = pd.to_numeric(data["Magnitude"], errors="coerce")
+        spectra_jd = import_spectra("spectra_list.txt")
+
+        nearest_m = nearest_mag(spectra_jd, date, m)
+
+        plt.title("Observations of R Cam")
+        ax.scatter(date, m, color="black", alpha=0.5, s=40, label="AAVSO data")    
+        ax.scatter(spectra_jd,nearest_m, marker='X', s=200, color="crimson", label='NES Spectra')
+        ax.set_xlim((2455580, 2457300))
+        ax.set_ylim((7.2, 14.5)[::-1])
+        ax.set_xlabel("JD")
+        ax.set_ylabel("Visual magnitude")
+
+        legend = ax.legend(shadow=True)
+        legend.get_frame().set_facecolor('C0')
+        fig.tight_layout()  
+        plt.show()
 
 if __name__ == "__main__":
     d_v = import_data("lightcurve.txt")
