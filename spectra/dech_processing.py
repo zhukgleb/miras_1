@@ -16,7 +16,7 @@ from numpy import (
 )
 from astropy.io import fits
 from struct import unpack, calcsize
-from os import listdir
+from os import listdir, sendfile
 
 
 """
@@ -207,37 +207,55 @@ def make_txt_from_spectra(working_folder: str, verbose=True, cutbad=True):
     return resulted_data
 
 
+def make_txt_from_fits(fits_path: str, fds_path: str):
+    fits_data = dech_fits_loader(fits_path)
+    orders_num = fits_data.shape[0]
+    blocks = fits_data.shape[1]
+    o = fds_loader(fds_path, orders_num, blocks)
+    print(o)
+    # data = []
+    data = glue_spectrum(o, True)
+    return data
+
+
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     import numpy as np
 
-#    working_folder = "/home/lambda/stellar_chem/iras07430/"
-#    a = make_txt_from_spectra(working_folder, cutbad=True)
-#    plt.plot(a[:, 0], a[:, 1])
-#    plt.show()
-#    savetxt("iras07_unnorm.txt", a)
-# o_name, o_num, o_len, data = read_100(working_folder + "/s693012s.100")
-# print(o_name, o_num, o_len)
-# fds = fds_loader(working_folder + "/s693011s.fds", o_num, o_len)
-# plt.plot(fds[0], data[0])
-# ccm = read_ccm(working_folder + "/s693012s.ccm")
+    #    working_folder = "/home/lambda/stellar_chem/iras07430/"
+    #    a = make_txt_from_spectra(working_folder, cutbad=True)
+    #    plt.plot(a[:, 0], a[:, 1])
+    #    plt.show()
+    #    savetxt("iras07_unnorm.txt", a)
+    # o_name, o_num, o_len, data = read_100(working_folder + "/s693012s.100")
+    # print(o_name, o_num, o_len)
+    # fds = fds_loader(working_folder + "/s693011s.fds", o_num, o_len)
+    # plt.plot(fds[0], data[0])
+    # ccm = read_ccm(working_folder + "/s693012s.ccm")
 
-data = tab_spectra("data/iras05113.tab")
-print(data)
-# plt.plot(data[:, 0], data[:, 1])
-# plt.show()
+    # data = tab_spectra("data/iras05113.tab")
+    # print(data)
+    # plt.plot(data[:, 0], data[:, 1])
+    # plt.show()
 
-# data = fds_loader("data/fits/s693011s.fds")
-# data = make_txt_from_spectra("data/fits/e693006s.fits.200", "data/fits/s693011s.fds")
-# print(data)
-# tab_spectra("data/irasz_1.tab", save=True)
-# spectrum = genfromtxt(
-#    "/home/lambda/TSFitPy/input_files/observed_spectra/iras2020.txt"
-# )
+    # data = fds_loader("data/fits/s693011s.fds")
+    # data = make_txt_from_spectra("data/fits/e693006s.fits.200", "data/fits/s693011s.fds")
+    # print(data)
+    # tab_spectra("data/irasz_1.tab", save=True)
+    # spectrum = genfromtxt(
+    #    "/home/lambda/TSFitPy/input_files/observed_spectra/iras2020.txt"
+    # )
 
+    # new_data = glue_spectrum(data, True)
+    # plt.plot(new_data[:, 0], new_data[:, 1])
+    # plt.show()
+    # np.savetxt("data/iras05113_unshifted.txt", new_data)
 
+    # f_p = "/home/alpha/miras_1/spectra/R_Cam/20111115/e577016s.fits"
+    # fds_p = "/home/alpha/miras_1/spectra/R_Cam/20111115/s577015s.fds"
 
-# new_data = glue_spectrum(data, True)
-# plt.plot(new_data[:, 0], new_data[:, 1])
-# plt.show()
-# np.savetxt("data/iras05113_unshifted.txt", new_data)
+    # d = make_txt_from_fits(fits_path=f_p, fds_path=fds_p)
+    wf = "/home/alpha/miras_1/spectra/R_Cam/20111115/"
+    rd = make_txt_from_spectra(wf, True, True)
+    # plt.plot(rd[:, 0], rd[:, 1])
+    # plt.show()
