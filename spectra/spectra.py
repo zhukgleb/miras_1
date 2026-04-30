@@ -55,6 +55,35 @@ for i in range(len(rd)):
     h_data.append(h_data_spec)
 
 
+h_alpha = h_data[0][0]
+x = h_alpha[:, 0]
+y = h_alpha[:, 1]
+y = y - 7500
+
+
+from astropy.modeling import models
+from astropy import units as u
+from specutils import Spectrum1D
+from specutils.fitting import fit_lines
+
+
+x = x * u.AA
+y = y * u.Jy
+
+spectrum = Spectrum1D(spectral_axis=x, flux=y)
+
+g_init = models.Gaussian1D(amplitude=max(y), mean=6562 * u.AA, stddev=1.0 * u.AA)
+g_fit = fit_lines(spectrum, g_init, window=(6560 * u.AA, 6564 * u.AA))
+y_fit = g_fit(x)
+
+# Plot the original spectrum and the fitted.
+plt.plot(x, y, label="Original spectrum")
+plt.plot(x, y_fit, label="Fit result")
+plt.title("Single fit peak")
+plt.grid(True)
+plt.legend()
+plt.show()
+
 date = [
     "15.11.2011 \n 0.52",
     "02.08.2012 \n 0.54",
@@ -73,7 +102,7 @@ lines = [
     r"$H_{\delta}$",
     r"$H_{\epsilon}$",
 ]
-plot = True
+plot = False
 
 
 if plot:
