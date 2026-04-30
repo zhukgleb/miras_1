@@ -34,6 +34,12 @@ bcvr_arr = [
     5704.073,
 ]
 
+for i in range(len(rd)):
+    _, rd[i][:, 0] = pyasl.dopplerShift(
+        rd[i][:, 0], rd[i][:, 1], bcvr_arr[i] / 1000, edgeHandling="firstlast"
+    )
+
+
 h_lines = [6562.8, 4861.3, 4340.5, 4101.7, 3970.1]
 delta = rd[0][:, 0][1] - rd[0][:, 0][0]
 delta_idx = 5 // delta
@@ -48,23 +54,16 @@ for i in range(len(rd)):
         )
     h_data.append(h_data_spec)
 
-print(len(rd))
-print(len(h_data))
-for i in range(len(rd)):
-    _, rd[i][:, 0] = pyasl.dopplerShift(
-        rd[i][:, 0], rd[i][:, 1], bcvr_arr[i] / 1000, edgeHandling="firstlast"
-    )
-
 
 date = [
-    "15.11.2011",
-    "02.08.2012",
-    "26.11.2012",
-    "02.02.2013",
-    "29.05.2013",
-    "09.10.2013",
-    "17.04.2014",
-    "11.08.2014",
+    "15.11.2011 \n 0.52",
+    "02.08.2012 \n 0.54",
+    "26.11.2012 \n 0.1",
+    "02.02.2013 \n 0.85",
+    "29.05.2013 \n 0.41",
+    "09.10.2013 \n 0.91",
+    "17.04.2014 \n 0.20",
+    "11.08.2014 \n 0.76",
 ]
 
 lines = [
@@ -74,20 +73,23 @@ lines = [
     r"$H_{\delta}$",
     r"$H_{\epsilon}$",
 ]
+plot = True
 
-with plt.style.context("science"):
-    fig, ax = plt.subplots(nrows=len(h_data), ncols=len(h_lines))
-    for i in range(len(ax)):
-        for j in range(len(ax[i])):
-            ax[i][j].plot(
-                h_data[i][j][:, 0], h_data[i][j][:, 1], color="black", alpha=1
-            )
-            if j == 0:
-                ax[i, j].set_ylabel(date[i], fontsize=12, rotation=90, labelpad=10)
-            if i == 0:
-                ax[i, j].set_title(lines[j], fontsize=12, pad=10)
 
-    plt.show()
+if plot:
+    with plt.style.context("science"):
+        fig, ax = plt.subplots(nrows=len(h_data), ncols=len(h_lines))
+        for i in range(len(ax)):
+            for j in range(len(ax[i])):
+                ax[i][j].plot(
+                    h_data[i][j][:, 0], h_data[i][j][:, 1], color="black", alpha=1
+                )
+                if j == 0:
+                    ax[i, j].set_ylabel(date[i], fontsize=12, rotation=90, labelpad=10)
+                if i == 0:
+                    ax[i, j].set_title(lines[j], fontsize=12, pad=10)
+
+        plt.show()
 
 #    for i in range(len(rd)):
 #        ax.plot(rd[i][:, 0], rd[i][:, 1])
