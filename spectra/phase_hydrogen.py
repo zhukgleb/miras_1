@@ -47,7 +47,7 @@ bcvr_arr = [
 
 for i in range(len(rd)):
     _, rd[i][:, 0] = pyasl.dopplerShift(
-        rd[i][:, 0], rd[i][:, 1], bcvr_arr[i] / 1000, edgeHandling="firstlast"
+        rd[i][:, 0], rd[i][:, 1], (bcvr_arr[i] - 2500) / 1000, edgeHandling="firstlast"
     )
 
 
@@ -66,14 +66,14 @@ for i in range(len(rd)):
     h_data.append(h_data_spec)
 
 
-h_alpha = h_data[6][3]
+h_alpha = h_data[6][1]
 x = h_alpha[:, 0]
 y = h_alpha[:, 1]
 # y = y - 7500
-# y = y - np.median(y)
-y = y / 200
+y = y - 500
+y = y / 1500
 
-np.savetxt("h_delta.txt", np.column_stack((x, y)))
+np.savetxt("h_beta.txt", np.column_stack((x, y)))
 
 # date = [
 #    "15.11.2011 \n 0.52",
