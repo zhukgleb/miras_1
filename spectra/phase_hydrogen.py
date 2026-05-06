@@ -66,14 +66,16 @@ for i in range(len(rd)):
     h_data.append(h_data_spec)
 
 
-h_alpha = h_data[0][0]
+h_alpha = h_data[6][3]
 x = h_alpha[:, 0]
 y = h_alpha[:, 1]
 # y = y - 7500
-y = y - np.median(y)
+# y = y - np.median(y)
+y = y / 200
 
+np.savetxt("h_delta.txt", np.column_stack((x, y)))
 
-#date = [
+# date = [
 #    "15.11.2011 \n 0.52",
 #    "02.08.2012 \n 0.54",
 #    "26.11.2012 \n 0.1",
@@ -82,16 +84,16 @@ y = y - np.median(y)
 #    "09.10.2013 \n 0.91",
 #   "17.04.2014 \n 0.20",
 #    "11.08.2014 \n 0.76",
-]
+# ]
 
-date  = [
-    "2012 11 26",
-    "2014 04 17",
-    "2013 05 29",
-    "2011 11 15",
-    "2012 08 02",
-    "2014 08 11",
-    "2013 10 09",
+date = [
+    "0.10",
+    "0.20",
+    "0.41",
+    "0.52",
+    "0.54",
+    "0.76",
+    "0.91",
 ]
 
 
@@ -105,6 +107,22 @@ lines = [
 plot = True
 
 
+identification = {
+    3966.10: "Fe 45",
+    3972.18: "Ni 29",
+    3973.62: "Ni 31",
+    4098.40: "Pr II",
+    4099.97: "Fe",
+    4100.20: "SiH (0, 0)?",
+    4105.18: "V 27",
+    4341.36: "Ti II Gd II",
+    4337.05: "Fe I",
+}
+
+from atlas import *
+
+atlas_lines = list(atlas_lines.keys())
+
 if plot:
     with plt.style.context("science"):
         fig, ax = plt.subplots(nrows=len(h_data), ncols=len(h_lines))
@@ -113,12 +131,50 @@ if plot:
                 ax[i][j].plot(
                     h_data[i][j][:, 0], h_data[i][j][:, 1], color="black", alpha=1
                 )
+                for x in range(len(atlas_lines)):
+                    try:
+                        if atlas_lines[x] < min(h_data[i][j][:, 0]):
+                            pass
+                        elif atlas_lines[x] > max(h_data[i][j][:, 0]):
+                            pass
+                        else:
+                            ax[i][j].plot(
+                                [atlas_lines[x], atlas_lines[x]],
+                                [0, max(h_data[i][j][:, 1])],
+                            )
+                    except ValueError:
+                        ax[i][j].plot([atlas_lines[x], atlas_lines[x]], [0, 0])
+
                 if j == 0:
                     ax[i, j].set_ylabel(date[i], fontsize=12, rotation=90, labelpad=10)
                 if i == 0:
                     ax[i, j].set_title(lines[j], fontsize=12, pad=10)
 
         plt.show()
+
+        # for i in range(len(h_data)):
+        #    fig, ax = plt.subplots(nrows=1, ncols=len(h_lines), figsize=(15, 4))
+        #    for j in range(len(ax)):
+        #        ax[j].plot(
+        #            h_data[i][j][:, 0], h_data[i][j][:, 1], color="black", alpha=1
+        #        )
+        # plt.tight_layout()
+        #    fig.suptitle(f"phase: {date[i]}")
+        # plt.savefig(f"{i}_.pdf")
+        # plt.show()
+        #
+
+        for i in range(len(lines)):
+            fig, ax = plt.subplots(nrows=1, ncols=len(h_data), figsize=(15, 4))
+            for j in range(len(ax)):
+                ax[j].plot(
+                    h_data[j][i][:, 0], h_data[j][i][:, 1], color="black", alpha=1
+                )
+                ax[j].set_title(date[j])
+            # plt.tight_layout()
+            fig.suptitle(f"{lines[i]}")
+            # plt.show()
+            # plt.savefig(f"{lines[i]}.pdf")
 
 #    for i in range(len(rd)):
 #        ax.plot(rd[i][:, 0], rd[i][:, 1])
