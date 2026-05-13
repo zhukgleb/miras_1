@@ -45,6 +45,8 @@ bcvr_arr = [
     5704.073,
 ]
 
+np.savetxt("rcam_medium.txt", rd[4])
+
 for i in range(len(rd)):
     _, rd[i][:, 0] = pyasl.dopplerShift(
         rd[i][:, 0], rd[i][:, 1], (bcvr_arr[i] - 2500) / 1000, edgeHandling="firstlast"
