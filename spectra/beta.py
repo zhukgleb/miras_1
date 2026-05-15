@@ -6,10 +6,10 @@ import PyAstronomy.pyasl as pyasl
 
 from atlas import *
 
-data = np.genfromtxt("rcam_medium.txt")
+data = np.genfromtxt("h_beta.txt")
 wave = data[:, 0]
 flux = data[:, 1]
-_, wave = pyasl.dopplerShift(wave, flux, -47, edgeHandling="firstlast")
+_, wave = pyasl.dopplerShift(wave, flux, -45, edgeHandling="firstlast")
 
 
 with plt.style.context("science"):
@@ -18,7 +18,7 @@ with plt.style.context("science"):
     ymin, ymax = ax.get_ylim()
     xmin, xmax = min(wave), max(wave)
     ax.set_xlim((xmin, xmax))
-    for wl, label in merill_atlas.items():
+    for wl, label in atlas_beta.items():
         ax.axvline(x=wl, color="red", linestyle="--", linewidth=0.8, alpha=0.7)
 
         # Текстовая метка (можно настроить угол поворота)
