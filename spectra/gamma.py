@@ -8,8 +8,8 @@ import random
 from atlas import *
 from atlas_gen import get_atlas, find_duplicate_terms
 
-all = False
-test = True
+all = True
+test = False
 
 data = np.genfromtxt("h_gamma.txt")
 wave = data[:, 0]
@@ -24,11 +24,15 @@ ymin, ymax = ax.get_ylim()
 xmin, xmax = min(wave), max(wave)
 ax.set_xlim((xmin, xmax))
 
-if all:
-    for wl, label in term_atlas.items():
-        ax.axvline(x=float(wl), color="red", linestyle="--", linewidth=1.2, alpha=0.7)
 
-        # Текстовая метка (можно настроить угол поворота)
+wd = get_atlas()
+
+if all:
+    for wl, label in wd.items():
+        ax.axvline(
+            x=float(wl), color="crimson", linestyle="--", linewidth=1.2, alpha=0.7
+        )
+
         ax.text(
             float(wl),
             ymax * 0.95,
@@ -43,7 +47,6 @@ if all:
 
 
 if test:
-    wd = get_atlas()
     terms = find_duplicate_terms(wd)
     print(terms)
 
