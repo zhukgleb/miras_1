@@ -21,13 +21,13 @@ spectra_content_old = [
 ]
 
 spectra_content = [
-"20120802",
-"20121126",
-"20130202",
-"20130529",
-"20131008",
-"20140417",
-"20140811"
+    "20120802",
+    "20121126",
+    "20130202",
+    "20130529",
+    "20131008",
+    "20140417",
+    "20140811",
 ]
 
 # spectra_content = os.listdir(folder_to_spectra)
@@ -55,15 +55,7 @@ bcvr_arr_old = [
     5704.073,
 ]
 
-bcvr_arr = [
-    9193.632,
-    6700.746,
-    -4907.927,
-    -4838.691,
-    2649.248,
-    8686.852,
-    5704.073
-]
+bcvr_arr = [9193.632, 6700.746, -4927.691, -4838.691, 2649.248, 8686.852, 5704.073]
 
 for i in range(len(rd)):
     _, rd[i][:, 0] = pyasl.dopplerShift(
@@ -139,7 +131,7 @@ if plot:
                     ax[i, j].set_title(lines[j], fontsize=12, pad=10)
 
         # plt.show()
-        h_gamma = [row[1] for row in h_data]
+        h_gamma = [row[0] for row in h_data]
 
         #        fig, ax = plt.subplots(nrows=len(h_gamma), ncols=2)
         #        for i in range(len(ax)):
@@ -157,6 +149,7 @@ if plot:
         fig, ax = plt.subplots()
         for i in range(len(h_gamma)):
             plt.plot(h_gamma[i][:, 0], h_gamma[i][:, 1], label=i)
+            np.savetxt(str(i) + ".txt", np.column_stack((h_gamma[i][:, 0], h_gamma[i][:, 1])))
         plt.legend()
         plt.show()
 #
