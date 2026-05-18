@@ -143,16 +143,16 @@ class SpectrumShifter:
     
     def on_key(self, event):
         if event.key == 'right' and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]['shift'] += 0.1
+            self.spectra[self.selected_spectrum]['shift'] += 0.02
             self.plot_spectra()
         elif event.key == 'left' and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]['shift'] -= 0.1
+            self.spectra[self.selected_spectrum]['shift'] -= 0.02
             self.plot_spectra()
         elif event.key == 'up' and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]['shift'] += 1.0
+            self.spectra[self.selected_spectrum]['shift'] += 0.5
             self.plot_spectra()
         elif event.key == 'down' and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]['shift'] -= 1.0
+            self.spectra[self.selected_spectrum]['shift'] -= 0.5
             self.plot_spectra()
         elif event.key == 'delete' and self.selected_spectrum is not None:
             self.delete_selected()
