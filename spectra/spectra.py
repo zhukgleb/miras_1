@@ -10,7 +10,7 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 folder_to_spectra = dir_path + "/R_Cam/"
 spectra_content = os.listdir(folder_to_spectra)
 
-spectra_content = [
+spectra_content_old = [
     "20121126",
     "20140417",
     "20130529",
@@ -19,6 +19,17 @@ spectra_content = [
     "20140811",
     "20131009",
 ]
+
+spectra_content = [
+"20120802",
+"20121126",
+"20130202",
+"20130529",
+"20131008",
+"20140417",
+"20140811"
+]
+
 # spectra_content = os.listdir(folder_to_spectra)
 # spectra_content.remove("20120413")
 # spectra_content.remove("20131008")
@@ -34,8 +45,7 @@ for i in range(len(spectra_path)):
 # rd = make_txt_from_spectra(wf, True, True)
 
 
-bcvr_arr = [
-    8200.185,
+bcvr_arr_old = [
     4450.928,
     6698.503,
     -4907.927,
@@ -43,6 +53,17 @@ bcvr_arr = [
     10429.766,
     -10185.650,
     5704.073,
+]
+
+bcvr_arr = [
+    10450.783,
+    4465.718,
+    6700.746,
+    7069.293,
+    -4838.691,
+    2649.248,
+    8686.852,
+    5704.073
 ]
 
 for i in range(len(rd)):
@@ -118,7 +139,29 @@ if plot:
                 if i == 0:
                     ax[i, j].set_title(lines[j], fontsize=12, pad=10)
 
+        # plt.show()
+        h_gamma = [row[1] for row in h_data]
+
+        #        fig, ax = plt.subplots(nrows=len(h_gamma), ncols=2)
+        #        for i in range(len(ax)):
+        #            if i == 0:
+        #                for j in range(len(ax[0])):
+        #                    ax[i][j].plot(
+        #                        h_gamma[i][:, 0], h_gamma[i][:, 1], color="black", alpha=1
+        #                    )
+        #            else:
+        #                pass
+
+        #        plt.show()
+        #
+        #
+        fig, ax = plt.subplots()
+        for i in range(len(h_gamma)):
+            plt.plot(h_gamma[i][:, 0], h_gamma[i][:, 1], label=i)
+        plt.legend()
         plt.show()
+#
+
 
 #    for i in range(len(rd)):
 #        ax.plot(rd[i][:, 0], rd[i][:, 1])
