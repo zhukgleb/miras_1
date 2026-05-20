@@ -56,6 +56,15 @@ bcvr_arr_old = [
 ]
 
 bcvr_arr = [9193.632, 6700.746, -4927.691, -4838.691, 2649.248, 8686.852, 5704.073]
+addition = [2000, -2000, -10000, 8000, 0, -17000, -7000]  # addition by eye
+na_addition = [-13*1000, 0.0, 1*1000, -17*1000, 0, -9*1000, 0]
+#rv = -31 * 1000
+rv = +45 * 1000
+# rv = -45 ? -19 TiO
+bcvr_arr = [bcvr_arr[x] + addition[x] + rv + na_addition[x] for x in range(len(bcvr_arr))]
+# bcvr_arr = bcvr_arr + addition
+
+print(bcvr_arr)
 
 for i in range(len(rd)):
     _, rd[i][:, 0] = pyasl.dopplerShift(
@@ -65,7 +74,8 @@ for i in range(len(rd)):
 
 h_lines = [6562.8, 4861.3, 4340.5, 4101.7, 3970.1]
 delta = rd[0][:, 0][1] - rd[0][:, 0][0]
-delta_idx = 5 // delta
+delta_idx = 3 // delta
+delta_idx_na = 5 // delta
 
 h_data = []
 for i in range(len(rd)):
@@ -77,6 +87,13 @@ for i in range(len(rd)):
         )
     h_data.append(h_data_spec)
 
+na_data = []
+
+for i in range(len(rd)):
+    center_idx = np.argmin(np.abs(rd[i][:, 0] - 5891.58))
+    na_data.append(
+        rd[i][int(center_idx - delta_idx_na) : int(center_idx + delta_idx_na)]
+    )
 
 h_alpha = h_data[0][0]
 x = h_alpha[:, 0]
@@ -115,6 +132,7 @@ lines = [
     r"$H_{\epsilon}$",
 ]
 plot = True
+save = True
 
 
 if plot:
@@ -148,10 +166,26 @@ if plot:
         #
         fig, ax = plt.subplots()
         for i in range(len(h_gamma)):
-            plt.plot(h_gamma[i][:, 0], h_gamma[i][:, 1], label=i)
-            np.savetxt(str(i) + ".txt", np.column_stack((h_gamma[i][:, 0], h_gamma[i][:, 1])))
+            h_gamma[i][:, 1] = h_gamma[i][:, 1] / np.median(h_gamma[i][:, 1])
+            if i != 1 and i != 5:
+                plt.plot(h_gamma[i][:, 0], h_gamma[i][:, 1], label=i)
+            if save:
+                np.savetxt(str(i) + ".txt", np.column_stack((h_gamma[i][:, 0], h_gamma[i][:, 1])))
+        plt.legend()
+        
+
+
+        fig, ax = plt.subplots()
+        for i in range(len(na_data)):
+            na_data[i][:, 1] = na_data[i][:, 1] / np.median(na_data[i][:, 1])
+            if i != 1 and i != 5:
+                plt.plot(na_data[i][:, 0], na_data[i][:, 1], label=i)
+            if save:
+                np.savetxt("na_" + str(i) + ".txt", np.column_stack((na_data[i][:, 0], na_data[i][:, 1])))
         plt.legend()
         plt.show()
+        
+
 #
 
 

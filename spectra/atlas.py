@@ -1426,3 +1426,6 @@ term_atlas = {
     "4399.765": "Ti II a2P",
     "4399.811": "Cr I b5D",
 }
+
+
+gamma_atlas = {}
