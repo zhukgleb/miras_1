@@ -194,6 +194,7 @@ class SpectrumShifter:
 
                 for line in lines:
                     line = line.strip()
+                    print(line)
                     if not line:
                         continue
 
@@ -418,16 +419,16 @@ class SpectrumShifter:
 
     def on_key(self, event):
         if event.key == "right" and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]["shift"] += 0.1
+            self.spectra[self.selected_spectrum]["shift"] += 0.02
             self.plot_spectra()
         elif event.key == "left" and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]["shift"] -= 0.1
+            self.spectra[self.selected_spectrum]["shift"] -= 0.02
             self.plot_spectra()
         elif event.key == "up" and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]["shift"] += 1.0
+            self.spectra[self.selected_spectrum]["shift"] += 0.5
             self.plot_spectra()
         elif event.key == "down" and self.selected_spectrum is not None:
-            self.spectra[self.selected_spectrum]["shift"] -= 1.0
+            self.spectra[self.selected_spectrum]["shift"] -= 0.5
             self.plot_spectra()
         elif event.key == "delete" and self.selected_spectrum is not None:
             self.delete_selected()
@@ -584,7 +585,7 @@ class SpectrumShifter:
                             y_max * 0.9,
                             label,
                             rotation=90,
-                            fontsize=6,
+                            fontsize=14,
                             ha="right",
                             va="top",
                             bbox=dict(boxstyle="round", facecolor="yellow", alpha=0.7),
@@ -596,7 +597,7 @@ class SpectrumShifter:
                             y_max * 0.95,
                             f"{line['element']}\n{line['wavelength']:.3f}",
                             rotation=90,
-                            fontsize=5,
+                            fontsize=12,
                             ha="right",
                             va="top",
                         )

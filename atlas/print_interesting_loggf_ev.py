@@ -72,7 +72,7 @@ if __name__ == "__main__":
 
     left_wavelength = 5880  # change this to change the range of wavelengths to print
     right_wavelength = 5910
-    loggf_threshold = 0  # change this to change the threshold for loggf
+    loggf_threshold = -1  # change this to change the threshold for loggf
 
     elements_data = read_element_data(os.path.join(linelist_path, linelist_filename))
     find_elements(elements_data, left_wavelength, right_wavelength, loggf_threshold)
