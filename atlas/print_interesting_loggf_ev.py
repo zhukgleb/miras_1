@@ -66,13 +66,13 @@ def find_elements(elements_data, left_wavelength, right_wavelength, loggf_thresh
 
 
 if __name__ == "__main__":
-    linelist_path = "/home/gamma/miras_1/atlas/"
+    linelist_path = "/home/alpha/miras_1/atlas/"
     linelist_filename = "nlte_ges_linelist_jmg04sep2023_I_II"
     print("element wavelength elow loggf term")
 
-    left_wavelength = 5880  # change this to change the range of wavelengths to print
-    right_wavelength = 5910
-    loggf_threshold = -1  # change this to change the threshold for loggf
+    left_wavelength = 5896.3  # change this to change the range of wavelengths to print
+    right_wavelength = 5896.6
+    loggf_threshold = -10  # change this to change the threshold for loggf
 
     elements_data = read_element_data(os.path.join(linelist_path, linelist_filename))
     find_elements(elements_data, left_wavelength, right_wavelength, loggf_threshold)
