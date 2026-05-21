@@ -151,7 +151,7 @@ if plot:
                     ax[i, j].set_title(lines[j], fontsize=12, pad=10)
 
         # plt.show()
-        h_gamma = [row[1] for row in h_data]
+        h_gamma = [row[0] for row in h_data]
 
         #        fig, ax = plt.subplots(nrows=len(h_gamma), ncols=2)
         #        for i in range(len(ax)):
@@ -173,7 +173,7 @@ if plot:
                 plt.plot(h_gamma[i][:, 0], h_gamma[i][:, 1], label=i)
             if save:
                 np.savetxt(
-                    "h_beta_" + str(i) + ".txt",
+                    "h_alpha_" + str(i) + ".txt",
                     np.column_stack((h_gamma[i][:, 0], h_gamma[i][:, 1])),
                 )
         plt.legend()
