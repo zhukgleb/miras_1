@@ -10,3 +10,14 @@ def get_spectra_cut(start_wl, end_wl, data):
 
     cut_data.append(data[int(start_idx) : int(end_idx)])
     return cut_data[0]
+
+
+def detect_orders(data):
+    orders = []
+    orders_gaps_idx = np.where(data[:, 1] == 0)
+    import matplotlib.pyplot as plt
+    plt.plot(data[:, 0], data[:, 1])
+    plt.scatter(data[:, 0][orders_gaps_idx], data[:, 1][orders_gaps_idx])
+    plt.show()
+    return orders
+
