@@ -1,0 +1,19 @@
+Temperature 2000
+Pressure 1e-6
+
+Range 14700.0  14800.0
+Npoints 25001
+
+
+absorption
+stick
+threshold 1e-28
+
+Gaussian
+HWHM 0.4 (cm-1)
+
+Output H2O.out
+
+
+States /home/epsilon/exocross/input/H2O/1H2-16O/POKAZATEL/1H2-16O__POKAZATEL.states
+Transitions /home/epsilon/exocross/input/H2O/1H2-16O/POKAZATEL/1H2-16O__POKAZATEL__14700-14800.trans

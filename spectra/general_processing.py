@@ -9,4 +9,4 @@ def get_spectra_cut(start_wl, end_wl, data):
     end_idx = np.argmin(np.abs(data[:, 0] - end_wl))
 
     cut_data.append(data[int(start_idx) : int(end_idx)])
-    return cut_data
+    return cut_data[0]
