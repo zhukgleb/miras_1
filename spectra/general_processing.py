@@ -12,17 +12,6 @@ def get_spectra_cut(start_wl, end_wl, data):
     return cut_data[0]
 
 
-
-# For future usage
-def detect_orders(data):
-    orders = []
-    orders_gaps_idx = np.where(data[:, 1] == 0)
-    import matplotlib.pyplot as plt
-    plt.plot(data[:, 0], data[:, 1])
-    plt.scatter(data[:, 0][orders_gaps_idx], data[:, 1][orders_gaps_idx])
-    plt.show()
-    return orders
-
 def median_normalization(data):
     wavelengths = data[:, 0]
     flux = data[:, 1].copy() 
