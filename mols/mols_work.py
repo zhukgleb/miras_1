@@ -1,6 +1,8 @@
 import numpy as np
 import PyAstronomy.pyasl as pyasl
 
+from scipy.interpolate import interp1d
+
 
 # Чилавек-малекула
 class Molecule:
@@ -172,21 +174,27 @@ class Molecule:
 if __name__ == "__main__":
     cp1 = "/home/delta/exocross/input/TiO_all.xsec"
     cp2 = "/home/delta/exocross/input/ZrO_all.xsec"
+    star_spectrum_path = "/home/delta/miras_1/mols/synth_all.spec"
+    obs_spectrum_path = "/home/delta/miras_1/mols/norm_spectra.txt"
     cross_section_data_1 = np.genfromtxt(cp1)
     cross_section_data_2 = np.genfromtxt(cp2)
+    nu_star, F_star_norm, F_star = np.loadtxt(star_spectrum_path, unpack=True)
+    nu_obs, F_obs = np.loadtxt(obs_spectrum_path, unpack=True)
+    # F_obs = F_obs * np.median(F_star) * 0.4
+
 
     mol1 = Molecule(
     name="TiO",
-    velocity=10,  
-    column_density=1e15,  
+    velocity=-100,  
+    column_density=1e16,  
     cross_section=cross_section_data_1,
     stick_spectrum=None
 )
 
     mol2 = Molecule(
         name="ZrO",
-        velocity=1,  
-        column_density=2e15, 
+        velocity=-110,  
+        column_density=2e16, 
         cross_section=cross_section_data_2
     )
 
@@ -194,6 +202,8 @@ if __name__ == "__main__":
     optical_depth2 = mol2.get_optical_depth()
 
     total_optical_depth = mol1 + mol2
+
+
 
     import matplotlib.pyplot as plt
     # Визуализация
@@ -213,4 +223,41 @@ if __name__ == "__main__":
     print(mol2)
     print(f"Оптическая глубина для {mol1.name}: {len(optical_depth1)} точек")
     print(f"Суммарная оптическая глубина: {len(total_optical_depth)} точек")
+
+    fig, ax = plt.subplots()
+    ax.plot(nu_obs,
+        F_obs,
+        "k-",
+        linewidth=1.0,
+        label="Observation spectra",
+    )
+    ax.plot(nu_star, F_star_norm, label="Model spectra")
+    ax.plot(total_optical_depth[:, 0], (total_optical_depth[:, 1] / np.median(total_optical_depth[:, 1])) / 40, '--', label='Total OD')
+    plt.legend()
+    plt.show()
+    
+    # График со всем на свете
+    F_obs_recalibrated = F_obs * np.median(F_star) * 0.4
+    F_interp_func = interp1d(nu_star, F_star, kind="linear", fill_value=0.0, bounds_error=False)
+    F_star_interp = F_interp_func(total_optical_depth[:, 0])
+    F_transmitted = F_star_interp * np.exp(-total_optical_depth[:, 1]) - 2e6
+
+
+    fig, ax = plt.subplots()
+    plt.plot(nu_obs, F_obs_recalibrated, label="obs data recalibrated", color="black")
+    plt.plot(total_optical_depth[:, 0], F_transmitted, label="Transmited")
+    plt.legend()
+    plt.show()
+
+    # ax.set_xlabel(r"Wavelength $\AA$")
+    # cm = "cm"
+    # dimension = r", \text{erg/s/cm}$^{-1}$"
+    # ax.set_title(dimension)
+    # # plt.plot(nu_molecule, F_absorbed, "r-", linewidth=0.8, label="Поглощенный спектр ZrO")
+    # ax.set_ylabel("Flux, " + dimension)
+    # plt.legend()
+    # plt.xlim(nu_obs.min(), nu_obs.max())
+    # ax.plot(
+    #     nu_obs, F_obs, color="navy", ls="--", linewidth=0.8, label="Observation"
+    # )
     

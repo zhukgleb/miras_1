@@ -8,9 +8,9 @@ from plots import cross_section_plot, optical_depth_plot, complex_graph
 # CONFIG
 # molecule_spectrum_path = "/home/delta/exocross/input/ZrO_6400.xsec"
 molecule_spectrum_path = "/home/delta/exocross/input/TiO_all.xsec"
-stick_path = "/home/delta/exocross/input/TiO_6400.stick"
-star_spectrum_path = "/home/delta/exocross/python/molecular_region_star.spec"
-obs_spectrum_path = "/home/delta/exocross/python/cut_for_molecule.txt.norm"
+stick_path = "/home/delta/exocross/input/TiO_all.stick"
+star_spectrum_path = "/home/delta/miras_1/mols/synth_all.spec"
+obs_spectrum_path = "/home/delta/miras_1/mols/norm_spectra.txt"
 scale_factor =  10e7
 column_density = 5e15
 # rv = -125
@@ -18,7 +18,6 @@ rv = -100
 save = False
 plots = True
 mol_name = "ZrO"
-
 
 nu_molecule, sigma_molecule = np.loadtxt(molecule_spectrum_path, unpack=True)
 nu_molecule = scale_factor / nu_molecule
@@ -101,4 +100,8 @@ if save:
 
 # cross_section_plot(nu_molecule, sigma_molecule, mol_name)
 # optical_depth_plot(nu_molecule, tau, column_density)
-complex_graph(nu_molecule, F_star_interp, F_transmitted, nu_obs, F_obs, nu_molecule_s, stick, fancy=False)
+# complex_graph(nu_molecule, F_star_interp, F_transmitted, nu_obs, F_obs, nu_molecule_s, stick, fancy=False)
+
+plt.plot(nu_molecule_s, stick*10e22, label="stick")
+plt.plot(nu_obs, F_obs)
+plt.show()
