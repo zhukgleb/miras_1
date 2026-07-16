@@ -96,14 +96,6 @@ class Molecule:
         """
         shifted_wavelengths, _ = self.apply_doppler_shift(velocity_shift)
         
-        # Отладка
-        print(f"DEBUG {self.name}:")
-        print(f"  wavelengths shape: {shifted_wavelengths.shape}")
-        print(f"  wavelengths min/max: {shifted_wavelengths.min():.2f}, {shifted_wavelengths.max():.2f}")
-        print(f"  cross_section shape: {self.cross_section_values.shape}")
-        print(f"  cross_section min/max: {self.cross_section_values.min():.2e}, {self.cross_section_values.max():.2e}")
-        print(f"  column_density: {self.column_density:.2e}")
-        
         # Сортируем по длинам волн
         sort_idx = np.argsort(shifted_wavelengths)
         shifted_wavelengths = shifted_wavelengths[sort_idx]
@@ -180,21 +172,19 @@ if __name__ == "__main__":
     cross_section_data_2 = np.genfromtxt(cp2)
     nu_star, F_star_norm, F_star = np.loadtxt(star_spectrum_path, unpack=True)
     nu_obs, F_obs = np.loadtxt(obs_spectrum_path, unpack=True)
-    # F_obs = F_obs * np.median(F_star) * 0.4
-
 
     mol1 = Molecule(
     name="TiO",
-    velocity=-100,  
-    column_density=1e16,  
+    velocity=-0,  
+    column_density=2e16,  
     cross_section=cross_section_data_1,
     stick_spectrum=None
 )
-
+    # 4619
     mol2 = Molecule(
         name="ZrO",
-        velocity=-110,  
-        column_density=2e16, 
+        velocity=-0,  
+        column_density=1e16, 
         cross_section=cross_section_data_2
     )
 
@@ -206,58 +196,79 @@ if __name__ == "__main__":
 
 
     import matplotlib.pyplot as plt
-    # Визуализация
-    plt.figure(figsize=(12, 6))
-    plt.plot(optical_depth1[:, 0], optical_depth1[:, 1], label=f'{mol1.name} (OD)')
-    plt.plot(optical_depth2[:, 0], optical_depth2[:, 1], label=f'{mol2.name} (OD)')
 
-    plt.plot(total_optical_depth[:, 0], total_optical_depth[:, 1], '--', label='Total OD')
-    plt.xlabel('Длина волны (Å)')
-    plt.ylabel('Оптическая глубина')
-    plt.legend()
-    plt.grid(True, alpha=0.3)
-    plt.title('Оптические глубины молекул')
-    plt.show()
-
-    print(mol1)
-    print(mol2)
-    print(f"Оптическая глубина для {mol1.name}: {len(optical_depth1)} точек")
-    print(f"Суммарная оптическая глубина: {len(total_optical_depth)} точек")
-
-    fig, ax = plt.subplots()
-    ax.plot(nu_obs,
-        F_obs,
-        "k-",
-        linewidth=1.0,
-        label="Observation spectra",
-    )
-    ax.plot(nu_star, F_star_norm, label="Model spectra")
-    ax.plot(total_optical_depth[:, 0], (total_optical_depth[:, 1] / np.median(total_optical_depth[:, 1])) / 40, '--', label='Total OD')
-    plt.legend()
-    plt.show()
+    fig, ax = plt.subplots(nrows=2)
+    ax[0].plot(optical_depth1[:, 0], optical_depth1[:, 1], label=f'{mol1.name} (OD)')
+    ax[0].plot(optical_depth2[:, 0], optical_depth2[:, 1], label=f'{mol2.name} (OD)')
+    ax[0].plot(total_optical_depth[:, 0], total_optical_depth[:, 1], '--', label='Total OD')
+    ax[0].set_xlabel('Длина волны (Å)')
+    ax[0].set_ylabel('Оптическая глубина')
+    ax[0].legend()
+    ax[0].set_title('Оптические глубины молекул')
     
+
+    # print(mol1)
+    # print(mol2)
+    # print(f"Оптическая глубина для {mol1.name}: {len(optical_depth1)} точек")
+    # print(f"Суммарная оптическая глубина: {len(total_optical_depth)} точек")
+
+    # fig, ax = plt.subplots()
+    # ax.plot(nu_obs,
+    #     F_obs,
+    #     "k-",
+    #     linewidth=1.0,
+    #     label="Observation spectra",
+    # )
+    # ax.plot(nu_star, F_star_norm, label="Model spectra")
+    # ax.plot(total_optical_depth[:, 0], (total_optical_depth[:, 1] / np.median(total_optical_depth[:, 1])) / 40, '--', label='Total OD')
+    # plt.legend()
+    # plt.show()
+    
+
     # График со всем на свете
     F_obs_recalibrated = F_obs * np.median(F_star) * 0.4
     F_interp_func = interp1d(nu_star, F_star, kind="linear", fill_value=0.0, bounds_error=False)
     F_star_interp = F_interp_func(total_optical_depth[:, 0])
-    F_transmitted = F_star_interp * np.exp(-total_optical_depth[:, 1]) - 2e6
+    F_transmitted = F_star_interp * np.exp(-total_optical_depth[:, 1])
 
+    # fig, ax = plt.subplots()
+    ax[1].plot(nu_obs, F_obs_recalibrated, label="obs data recalibrated", color="black")
+    ax[1].plot(total_optical_depth[:, 0], F_transmitted, label="Transmited")
 
-    fig, ax = plt.subplots()
-    plt.plot(nu_obs, F_obs_recalibrated, label="obs data recalibrated", color="black")
-    plt.plot(total_optical_depth[:, 0], F_transmitted, label="Transmited")
-    plt.legend()
+    ax[0].plot([4637.909, 4637.909], [0, max(optical_depth2[:, 1])], label="element 1")
+    ax[0].plot([4638.95, 4638.95], [0, max(optical_depth2[:, 1])], label="element 2")
+    ax[1].plot([4637.909, 4637.909], [0, max(F_obs_recalibrated)], label="element 1")
+    ax[1].plot([4638.95, 4638.95], [0, max(F_obs_recalibrated)], label="element 2")
+    
+
+    ax[1].legend()
+    # ax[0].set_xlim((4612, 4679))    
+    # ax[1].set_xlim((4612, 4679))
     plt.show()
 
-    # ax.set_xlabel(r"Wavelength $\AA$")
-    # cm = "cm"
-    # dimension = r", \text{erg/s/cm}$^{-1}$"
-    # ax.set_title(dimension)
-    # # plt.plot(nu_molecule, F_absorbed, "r-", linewidth=0.8, label="Поглощенный спектр ZrO")
-    # ax.set_ylabel("Flux, " + dimension)
-    # plt.legend()
-    # plt.xlim(nu_obs.min(), nu_obs.max())
-    # ax.plot(
-    #     nu_obs, F_obs, color="navy", ls="--", linewidth=0.8, label="Observation"
-    # )
+
     
+    import scienceplots
+    with plt.style.context(["science", "ieee"]):
+        fig, ax = plt.subplots(ncols=2, figsize=(6, 4))
+        ax[0].set_xlim((4220, 4235))
+        ax[0].plot(nu_star, F_star_norm, label="Synth data norm", color="crimson", alpha=0.8)
+        ax[0].plot(nu_obs, F_obs, label="Obs data norm", color="black", alpha=0.7)
+        ax[0].plot([4226.728, 4226.728], [0, 3], label="Ca I 4226.728", color="green", linestyle="-.")
+        ax[0].set_title("Ca I line")
+        ax[0].set_ylim((0, 1.5))
+
+
+        ax[1].set_title("Na I line")
+        ax[1].set_xlim((5886, 5900))
+        ax[1].plot(nu_star, F_star_norm, label="Synth data norm", color="crimson", alpha=0.8)
+        ax[1].plot(nu_obs, F_obs, label="Obs data norm", color="black", alpha=0.7)
+        ax[1].plot([5889.95, 5889.95], [0, 3], label="Na I 5889.95", color="green", linestyle="-.")
+        ax[1].plot([5895.92, 5895.92], [0, 3], label="Na I 5895.92", color="green", linestyle="-.")
+        ax[1].set_ylim((0, 1.5))
+        ax[0].legend()
+        ax[1].legend()
+        plt.tight_layout()
+        plt.show()
+        # plt.savefig("rv_lines.pdf")
+

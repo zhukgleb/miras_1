@@ -4,6 +4,9 @@ from dech_processing import make_txt_from_spectra
 import matplotlib.pyplot as plt
 import scienceplots
 import os
+from general_processing import get_spectra_cut
+
+show_all_spectra = False
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
@@ -65,14 +68,36 @@ bcvr_arr = [
     bcvr_arr[x] + addition[x] + rv + na_addition[x] for x in range(len(bcvr_arr))
 ]
 # bcvr_arr = bcvr_arr + addition
+#
+bvcr_arr = [
+    40193.632,
+    46700.746,
+    28072.309,
+    28161.309,
+    44649.248,
+    24686.852,
+    40704.073000000004,
+]
+
 
 print("corrected speed are: ", bcvr_arr)
 
-for i in range(len(rd)):
-    _, rd[i][:, 0] = pyasl.dopplerShift(
-        rd[i][:, 0], rd[i][:, 1], bcvr_arr[i] / 1000, edgeHandling="firstlast"
-    )
-    if i != 1:
-        plt.plot(rd[i][:, 0], rd[i][:, 1] / np.median(rd[i][:, 1]), label=i)
-plt.legend()
-plt.show()
+if show_all_spectra:
+    for i in range(len(rd)):
+        _, rd[i][:, 0] = pyasl.dopplerShift(
+            rd[i][:, 0], rd[i][:, 1], bcvr_arr[i] / 1000, edgeHandling="firstlast"
+        )
+        if i != 1:
+            plt.plot(rd[i][:, 0], rd[i][:, 1], label=i)
+    plt.legend()
+    plt.show()
+
+
+# 6 и 2 с хорошим накоплением
+#
+
+# cut_data = get_spectra_cut(6423, 6587, rd[6])
+# plt.plot(cut_data[:, 0], cut_data[:, 1])
+# plt.show()
+
+# np.savetxt("cut_for_molecule.txt", cut_data)
