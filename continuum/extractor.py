@@ -151,7 +151,6 @@ spectra_path = folder_to_spectra + spectra_content[num] + "/"
 
 data = make_txt_from_spectra(spectra_path, True, True)
 orders = split_spectral_orders(data)
-# data = data[np.where((data[:, 0] >= 7450) & (data[:, 0] <= 7530))]
 synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
 
 obs_norm = []
@@ -169,7 +168,7 @@ for order in range(len(orders)-1):
     n_target = len(orders[order][:, 0])
     yn_interpolated = np.interp(x_target, x_original, yn)
     # normy
-    mean_in_order = np.mean(synth_data[:, 1][np.where((synth_data[:, 0] >= min(orders[order][:, 0])) & (synth_data[:, 0] <= max(orders[order][:, 0])))])
+    mean_in_order = np.mean(synth_data[:, 2][np.where((synth_data[:, 0] >= min(orders[order][:, 0])) & (synth_data[:, 0] <= max(orders[order][:, 0])))])
     obs_norm.append(np.column_stack((orders[order][:, 0], orders[order][:, 1] * (1 / yn_interpolated) * mean_in_order)))
     obs_norm_s.append(np.column_stack((orders[order][:, 0], orders[order][:, 1] * mean_in_order)))
 
