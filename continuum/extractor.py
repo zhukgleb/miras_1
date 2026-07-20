@@ -10,6 +10,7 @@ from dech_processing import make_txt_from_spectra
 from general_processing import median_normalization, full_pipeline, normalize_orders_median
 from typing import List
 from scipy.interpolate import interp1d
+from scipy.signal import medfilt
 
 
 
@@ -35,7 +36,7 @@ def fit_parabola(x, y):
     xb = -b / (2*a)
     yb = a * xb**2 + b * xb + c
     yn = y / yb
-
+    yn_p = y_fit / yb
     
     return {
         'a': a,
@@ -44,7 +45,8 @@ def fit_parabola(x, y):
         'r2': r2,
         'y_fit': y_fit,
         'func': lambda x_val: parabola(x_val, a, b, c),
-        'yn': yn
+        'yn': yn,
+        'yn_p': yn_p
     }
 
 
@@ -109,6 +111,15 @@ with plt.style.context(["science", "ieee"]):
     for i in range(len(image_data)):
         x_pixels = np.array([x for x in range(len(image_data[i]))])
         y_pixels = image_data[i]
+        y_pixels = y_pixels.astype('float64')
+        y_pixels = medfilt(y_pixels, kernel_size=15)
+        y_pixels = medfilt(y_pixels, kernel_size=31)
+        y_pixels = medfilt(y_pixels, kernel_size=31)
+        y_pixels = medfilt(y_pixels, kernel_size=51)
+
+
+
+
         result = fit_parabola(x_pixels, y_pixels)
         fit_arr.append(result)
         y_smooth = result['func'](x_pixels)
@@ -154,11 +165,12 @@ orders = split_spectral_orders(data)
 synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
 
 obs_norm = []
+obs_norm_p = []
 obs_norm_s = []
 for order in range(len(orders)-1):
     x1 = np.mean(orders[order][:, 0])
     print(f"Center of order {order} is {x1} AA")
-    a, b, c, yn = fit_arr[order]['a'], fit_arr[order]['b'], fit_arr[order]['c'], fit_arr[order]['yn']
+    a, b, c, yn, yn_p = fit_arr[order]['a'], fit_arr[order]['b'], fit_arr[order]['c'], fit_arr[order]['yn'], fit_arr[order]['yn_p']
     an, bn, cn = move_parabola(a, b, c, 1024, x1)
 
     # numpy var
@@ -167,10 +179,15 @@ for order in range(len(orders)-1):
     x_target = np.linspace(0, 1, n_target)
     n_target = len(orders[order][:, 0])
     yn_interpolated = np.interp(x_target, x_original, yn)
+    yn_p_interpolated = np.interp(x_target, x_original, yn_p)
     # normy
-    mean_in_order = np.mean(synth_data[:, 2][np.where((synth_data[:, 0] >= min(orders[order][:, 0])) & (synth_data[:, 0] <= max(orders[order][:, 0])))])
-    obs_norm.append(np.column_stack((orders[order][:, 0], orders[order][:, 1] * (1 / yn_interpolated) * mean_in_order)))
-    obs_norm_s.append(np.column_stack((orders[order][:, 0], orders[order][:, 1] * mean_in_order)))
+    mean_in_order = np.mean(synth_data[:, 1][np.where((synth_data[:, 0] >= min(orders[order][:, 0])) & (synth_data[:, 0] <= max(orders[order][:, 0])))])
+    y_new = orders[order][:, 1] / (yn_interpolated) * (mean_in_order) / np.mean(orders[order][:, 1])
+    y_new_p = orders[order][:, 1] / (yn_p_interpolated) * (mean_in_order) / np.mean(orders[order][:, 1])
+    y_new_s = orders[order][:, 1] * mean_in_order / np.mean(orders[order][:, 1])
+    obs_norm.append(np.column_stack((orders[order][:, 0], y_new)))
+    obs_norm_p.append(np.column_stack((orders[order][:, 0], y_new_p)))
+    obs_norm_s.append(np.column_stack((orders[order][:, 0], y_new_s)))
 
     # fig, ax = plt.subplots()
     # ax.plot(orders[order][:, 0], orders[order][:, 1], label="obs")
@@ -185,10 +202,14 @@ for order in range(len(orders)-1):
 #     ax.plot(obs_norm[i][:, 0], obs_norm[i][:, 1])
 #     ax.plot(obs_norm_s[i][:, 0], obs_norm_s[i][:, 1])
 
-fig, ax = plt.subplots()
-obs_norm = np.concatenate(obs_norm)
-obs_norm_s = np.concatenate(obs_norm_s)
-ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="flat-corrected")
-ax.plot(obs_norm_s[:, 0], obs_norm_s[:, 1], label="uncorrected")
-ax.legend()
-plt.show()
+
+with plt.style.context(["science", "ieee"]):
+    fig, ax = plt.subplots()
+    obs_norm = np.concatenate(obs_norm)
+    obs_norm_p = np.concatenate(obs_norm_p)
+    obs_norm_s = np.concatenate(obs_norm_s)
+    ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="flat-corrected", color="navy")
+    ax.plot(obs_norm[:, 0], obs_norm_p[:, 1], label="parabola-corrected", color='crimson')
+    ax.plot(obs_norm_s[:, 0], obs_norm_s[:, 1], label="uncorrected", color="black")
+    ax.legend()
+    plt.show()
