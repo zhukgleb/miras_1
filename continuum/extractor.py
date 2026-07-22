@@ -104,29 +104,46 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
                         threshold=0.1, poly_degree=3, 
                         sigma_clip=3.0, plot=True):
     
-    # 1. Реперные точки
+    # ============================================================
+    # 1. КРИТИЧЕСКИ ВАЖНО: Интерполяция наблюдений на сетку модели
+    # ============================================================
+    # Теперь model_wave и obs_flux_interp имеют ОДИНАКОВУЮ длину!
+    obs_flux_interp = np.interp(model_wave, obs_wave, obs_flux)
+    
+    # 2. Реперные точки (маска создаётся по длине МОДЕЛИ)
     mask = model_diff < threshold
-    if np.sum(mask) < 5:
+    
+    # Проверяем, сколько точек попало
+    n_points = np.sum(mask)
+    print(f"Found {n_points} reference points with threshold={threshold}")
+    
+    if n_points < 5:
+        # Если точек мало - ослабляем порог
         mask = model_diff < threshold * 1.5
-        print(f"Used relaxed threshold: {threshold * 1.5:.2f}")
+        n_points = np.sum(mask)
+        print(f"Relaxed threshold to {threshold * 1.5:.2f}, found {n_points} points")
     
+    if n_points < 3:
+        raise ValueError(f"Too few reference points ({n_points}) for polynomial fitting!")
+    
+    # Берём x и y из МОДЕЛЬНОЙ сетки (они одной длины)
     x_fit = model_wave[mask]
-    y_fit = obs_flux[mask] / model_flux[mask]
+    y_fit = obs_flux_interp[mask] / model_flux[mask]   # <--- ТЕПЕРЬ ВСЁ РАБОТАЕТ!
     
-    # 2. Отбрасываем выбросы по Y
+    # 3. Отбрасываем выбросы по Y
     median_y = np.median(y_fit)
     std_y = np.std(y_fit)
     clip_mask = np.abs(y_fit - median_y) < sigma_clip * std_y
     x_fit = x_fit[clip_mask]
     y_fit = y_fit[clip_mask]
     
-    print(f"Using {len(x_fit)} reference points for polynomial fit")
+    print(f"After sigma-clipping: {len(x_fit)} points left")
     
-    # 3. Подгонка полинома
+    # 4. Подгонка полинома
     coeffs = np.polyfit(x_fit, y_fit, poly_degree)
     poly_func = np.poly1d(coeffs)
     
-    # 4. Визуализация
+    # 5. Визуализация (опционально)
     if plot:
         plt.figure(figsize=(12, 5))
         
@@ -136,7 +153,7 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
         plt.plot(x_smooth, poly_func(x_smooth), 'r-', linewidth=2, 
                  label=f'Polynomial (deg={poly_degree})')
         plt.xlabel('Wavelength')
-        plt.ylabel('Observed / Model')
+        plt.ylabel('Observed / Model (interpolated)')
         plt.legend()
         plt.grid(True)
         plt.title('Polynomial fit to reference points')
@@ -153,11 +170,11 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
         plt.tight_layout()
         plt.show()
     
-    # 5. Применяем ко всему спектру
+    # 6. Применяем полином к НАБЛЮДАЕМОЙ сетке длин волн (оригинальной!)
     poly_full = poly_func(obs_wave)
     normalized_obs = obs_flux / poly_full
     
-    return normalized_obs, poly_func
+    return normalized_obs, poly_func, obs_flux_interp
 
 hdu_list = fits.open("e619020c.fits")
 hdu_list.info()
@@ -315,3 +332,66 @@ for key in grid.keys():
 plt.legend()
 # plt.show()
 
+
+
+for key in grid.keys():
+    if key == "param_grid":
+        pass
+    else:
+        wl = grid[key]['spectrum']['wavelength']
+        flux = grid[key]['spectrum']['flux_norm']
+        params = grid[key]['parameters']
+
+rep_wave = grid['0.spec']['spectrum']['wavelength']
+rep_flux = grid['0.spec']['spectrum']['flux_norm']
+flux_arr = []
+
+
+for key in grid.keys():
+    if key == "param_grid":
+        pass
+    else:
+        flux_arr.append(grid[key]['spectrum']['flux_norm']) 
+
+delta_arr = np.array([abs(rep_flux - flux_arr[i]) for i in range(len(flux_arr))])
+delta_arr_smart = []
+
+
+for i in range(len(flux_arr)):
+    d_map = []
+    for j in range(len(flux_arr[i])):
+        if flux_arr[i][j] < 0.5:
+            d_map.append(1)
+        else:
+            d_map.append(abs(rep_flux[j] - flux_arr[i][j]))
+    delta_arr_smart.append(d_map)
+
+
+delta_arr_mean = np.mean(delta_arr, axis=0)
+delta_arr_mean_smart = np.mean(delta_arr_smart, axis=0)
+
+fig, ax = plt.subplots()
+ax.scatter(rep_wave, delta_arr_mean_smart, label="mean smart")
+ax.scatter(rep_wave, delta_arr_mean, label="mean")
+ax.legend()
+
+with plt.style.context(["science", "ieee"]):
+    fig, ax = plt.subplots()
+    scatter = ax.scatter(grid["0.spec"]['spectrum']['wavelength'], grid["0.spec"]['spectrum']['flux_norm'], c=delta_arr_mean, cmap='plasma', s=1, alpha=0.5)
+    ax.set_title("Delta graph")
+    ax.set_xlabel(r"Wavelength, \AA")
+    ax.set_ylabel(r"mean delta flux")
+    cbar = fig.colorbar(scatter, ax=ax)
+    cbar.set_label('Delta', fontsize=12)
+
+    fig, ax = plt.subplots()
+    good_delta_data = np.where(delta_arr_mean < 0.1)
+    sc = ax.scatter(grid["0.spec"]['spectrum']['wavelength'][good_delta_data], grid["0.spec"]['spectrum']['flux_norm'][good_delta_data], c=delta_arr_mean[good_delta_data], cmap='plasma', s=1)
+    cbar = fig.colorbar(sc, ax=ax)
+    cbar.set_label('Delta', fontsize=12)
+
+
+p_obs, p_flux, p_flux_new = normalize_with_poly(rep_wave, rep_flux, delta_arr_mean_smart, obs_norm_p[:, 0], obs_norm_p[:, 1])
+fig, ax = plt.subplots()
+ax.plot(obs_norm_p[:, 0], p_obs)
+plt.show()
