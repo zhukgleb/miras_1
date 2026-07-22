@@ -391,7 +391,7 @@ with plt.style.context(["science", "ieee"]):
     cbar.set_label('Delta', fontsize=12)
 
 
-p_obs, p_flux, p_flux_new = normalize_with_poly(rep_wave, rep_flux, delta_arr_mean_smart, obs_norm_p[:, 0], obs_norm_p[:, 1])
+p_obs, p_flux, p_flux_new = normalize_with_poly(rep_wave, rep_flux, delta_arr_mean_smart, obs_norm_p[:, 0], obs_norm_p[:, 1], poly_degree=5)
 fig, ax = plt.subplots()
 ax.plot(obs_norm_p[:, 0], p_obs)
 plt.show()
