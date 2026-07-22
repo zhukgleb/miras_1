@@ -11,7 +11,7 @@ from general_processing import median_normalization, full_pipeline, normalize_or
 from typing import List
 from scipy.interpolate import interp1d
 from scipy.signal import medfilt
-
+from Model_extractor import ModelGridExtractor
 
 
 dir_path = os.path.dirname(os.path.realpath(__file__)).replace("continuum", "")
@@ -99,6 +99,65 @@ def move_parabola(a, b, c, x0, x1):
     
     return a_new, b_new, c_new
 
+def normalize_with_poly(model_wave, model_flux, model_diff, 
+                        obs_wave, obs_flux, 
+                        threshold=0.1, poly_degree=3, 
+                        sigma_clip=3.0, plot=True):
+    
+    # 1. Реперные точки
+    mask = model_diff < threshold
+    if np.sum(mask) < 5:
+        mask = model_diff < threshold * 1.5
+        print(f"Used relaxed threshold: {threshold * 1.5:.2f}")
+    
+    x_fit = model_wave[mask]
+    y_fit = obs_flux[mask] / model_flux[mask]
+    
+    # 2. Отбрасываем выбросы по Y
+    median_y = np.median(y_fit)
+    std_y = np.std(y_fit)
+    clip_mask = np.abs(y_fit - median_y) < sigma_clip * std_y
+    x_fit = x_fit[clip_mask]
+    y_fit = y_fit[clip_mask]
+    
+    print(f"Using {len(x_fit)} reference points for polynomial fit")
+    
+    # 3. Подгонка полинома
+    coeffs = np.polyfit(x_fit, y_fit, poly_degree)
+    poly_func = np.poly1d(coeffs)
+    
+    # 4. Визуализация
+    if plot:
+        plt.figure(figsize=(12, 5))
+        
+        plt.subplot(1, 2, 1)
+        plt.plot(x_fit, y_fit, 'bo', markersize=4, label='Reference ratios')
+        x_smooth = np.linspace(min(x_fit), max(x_fit), 200)
+        plt.plot(x_smooth, poly_func(x_smooth), 'r-', linewidth=2, 
+                 label=f'Polynomial (deg={poly_degree})')
+        plt.xlabel('Wavelength')
+        plt.ylabel('Observed / Model')
+        plt.legend()
+        plt.grid(True)
+        plt.title('Polynomial fit to reference points')
+        
+        plt.subplot(1, 2, 2)
+        residuals = y_fit - poly_func(x_fit)
+        plt.plot(x_fit, residuals, 'go', markersize=4)
+        plt.axhline(y=0, color='r', linestyle='--')
+        plt.xlabel('Wavelength')
+        plt.ylabel('Residuals')
+        plt.grid(True)
+        plt.title(f'Residuals (RMS = {np.std(residuals):.4f})')
+        
+        plt.tight_layout()
+        plt.show()
+    
+    # 5. Применяем ко всему спектру
+    poly_full = poly_func(obs_wave)
+    normalized_obs = obs_flux / poly_full
+    
+    return normalized_obs, poly_func
 
 hdu_list = fits.open("e619020c.fits")
 hdu_list.info()
@@ -107,7 +166,7 @@ image_data = hdu_list[0].data
 fit_arr = []
 
 with plt.style.context(["science", "ieee"]):
-    fig, ax = plt.subplots(figsize=(2, 4))
+    fig, ax = plt.subplots(figsize=(3, 5))
     for i in range(len(image_data)):
         x_pixels = np.array([x for x in range(len(image_data[i]))])
         y_pixels = image_data[i]
@@ -116,8 +175,6 @@ with plt.style.context(["science", "ieee"]):
         y_pixels = medfilt(y_pixels, kernel_size=31)
         y_pixels = medfilt(y_pixels, kernel_size=31)
         y_pixels = medfilt(y_pixels, kernel_size=51)
-
-
 
 
         result = fit_parabola(x_pixels, y_pixels)
@@ -132,6 +189,8 @@ with plt.style.context(["science", "ieee"]):
 
 
     plt.tight_layout()
+    # plt.savefig("orders_normalization.pdf")
+    # plt.savefig("orders_normalization.png", dpi=300)
     # plt.show()
 
 
@@ -167,6 +226,7 @@ synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
 obs_norm = []
 obs_norm_p = []
 obs_norm_s = []
+
 for order in range(len(orders)-1):
     x1 = np.mean(orders[order][:, 0])
     print(f"Center of order {order} is {x1} AA")
@@ -203,13 +263,55 @@ for order in range(len(orders)-1):
 #     ax.plot(obs_norm_s[i][:, 0], obs_norm_s[i][:, 1])
 
 
+# with plt.style.context(["science", "ieee"]):
+#     fig, ax = plt.subplots()
+#     obs_norm = np.concatenate(obs_norm)
+#     obs_norm_p = np.concatenate(obs_norm_p)
+#     obs_norm_s = np.concatenate(obs_norm_s)
+#     ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="flat-corrected", color="navy")
+#     ax.plot(obs_norm[:, 0], obs_norm_p[:, 1], label="parabola-corrected", color='crimson')
+#     ax.plot(obs_norm_s[:, 0], obs_norm_s[:, 1], label="uncorrected", color="black")
+#     ax.legend()
+#     plt.show()
+
+
 with plt.style.context(["science", "ieee"]):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(4, 2))
     obs_norm = np.concatenate(obs_norm)
     obs_norm_p = np.concatenate(obs_norm_p)
     obs_norm_s = np.concatenate(obs_norm_s)
     ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="flat-corrected", color="navy")
     ax.plot(obs_norm[:, 0], obs_norm_p[:, 1], label="parabola-corrected", color='crimson')
     ax.plot(obs_norm_s[:, 0], obs_norm_s[:, 1], label="uncorrected", color="black")
+    ax.set_xlim((6613, 6685))
+    ax.set_ylim((0, 2))
     ax.legend()
-    plt.show()
+    plt.savefig("cut_of_spectra.pdf")
+    plt.savefig("cut_of_spectra.png", dpi=300)
+    # plt.show()
+
+
+folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
+    
+extractor = ModelGridExtractor(folder_path)    
+params_df = extractor.load_parameters()
+print("\nПараметры моделей:")
+print(params_df.head())
+spectra = extractor.load_spectra()
+grid = extractor.build_grid()
+
+
+fig, ax = plt.subplots()
+for key in grid.keys():
+    if key == "param_grid":
+        pass
+    else:
+        wl = grid[key]['spectrum']['wavelength']
+        flux = grid[key]['spectrum']['flux_norm']
+        params = grid[key]['parameters']
+        label = f"{params['specname']}, teff: {params['teff']}, log g: {params['logg']}, [Fe/H] = {params["feh"]}"
+
+        plt.plot(wl, flux, label=label)
+plt.legend()
+# plt.show()
+
