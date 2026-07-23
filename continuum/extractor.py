@@ -14,6 +14,7 @@ from process import (
     split_spectral_orders,
     move_parabola,
     normalize_with_poly,
+    iterative_flexure_correction,
 )
 
 dir_path = os.path.dirname(os.path.realpath(__file__)).replace("continuum", "")
@@ -22,7 +23,7 @@ spectra_content = os.listdir(folder_to_spectra)
 
 
 # CONFIG
-plot = True
+plot = False
 save = False
 folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
 
@@ -168,10 +169,28 @@ p_obs, p_flux, p_flux_new = normalize_with_poly(
     rep_flux,
     delta_arr_mean_smart,
     obs_norm_p[:, 0],
-    obs_norm_p[:, 1],
-    poly_degree=7,
+    obs_norm_p[:, 1] - 0.5,
+    poly_degree=5,
     plot=plot,
+    force_normalize=True
 )
+
+
+p_obs, p_flux_corr, history = iterative_flexure_correction(
+    model_wave=rep_wave,
+    model_flux=rep_flux,
+    model_diff=delta_arr_mean_smart,
+    obs_wave=obs_norm_p[:, 0],
+    obs_flux=obs_norm_p[:, 1],
+    threshold=0.1,
+    poly_degree=7,
+    n_iterations=5,
+    flexure_smooth_width=150,  # настройте под ваше гнутие
+    sigma_clip=2.5,
+    plot=True,
+    verbose=True
+)
+
 
 if plot:
     with plt.style.context(["science", "ieee"]):

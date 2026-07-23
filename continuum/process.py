@@ -14,6 +14,10 @@ from scipy.signal import medfilt
 from Model_extractor import ModelGridExtractor
 
 
+from scipy.signal import savgol_filter
+from scipy.ndimage import gaussian_filter1d
+
+
 def fit_parabola(x, y):
     def parabola(x, a, b, c):
         return a * x**2 + b * x + c
@@ -188,6 +192,7 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
     # 1. Интерполяция наблюдений на сетку модели
     # ============================================================
     obs_flux_interp = np.interp(model_wave, obs_wave, obs_flux)
+    print(f"Model median {np.median(model_flux)}")
     
     # 2. Реперные точки
     mask = model_diff < threshold
@@ -331,9 +336,9 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
     # 8. Принудительная нормализация (если нужно)
     if force_normalize:
         median_norm = np.median(normalized_obs)
-        if abs(median_norm - 1.0) > 0.02:
-            print(f"  Forcing normalization: median {median_norm:.4f} -> 1.0")
-            correction = 1.0 / median_norm
+        if abs(median_norm - np.median(model_flux)) > 0.02:
+            print(f"  Forcing normalization: median {median_norm:.4f} -> {np.median(model_flux)} (model)")
+            correction = np.median(model_flux) / median_norm
             normalized_obs = normalized_obs * correction
             # Корректируем полином (для согласованности)
             poly_func = lambda x: poly_func(x) * correction
@@ -342,15 +347,280 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
     final_median = np.median(normalized_obs)
     print(f"\nFinal median of normalized spectrum: {final_median:.4f}")
     
-    if abs(final_median - 1.0) > 0.05:
-        print("  ⚠️  WARNING: Normalized spectrum deviates from 1.0")
+    if abs(final_median - np.median(model_flux)) > 0.05:
+        print("  ⚠️  WARNING: Normalized spectrum deviates from median model")
         print("     Possible issues:")
         print("     - Outliers in reference points not fully removed")
         print("     - Model not properly normalized")
         print("     - Polynomial degree too high (overfitting)")
+        print(f"Median model {np.median(model_flux)}, median observation flux {final_median}")
     else:
         print("  ✅ Normalization successful!")
     
     print("="*60 + "\n")
     
     return normalized_obs, poly_func, obs_flux_interp
+
+
+def iterative_flexure_correction(model_wave, model_flux, model_diff,
+                                  obs_wave, obs_flux,
+                                  threshold=0.1, 
+                                  poly_degree=7,
+                                  n_iterations=5,
+                                  flexure_smooth_width=100,
+                                  sigma_clip=2.5,
+                                  plot=True,
+                                  verbose=True):
+    """
+    Итеративное исправление гнутия спектральных порядков.
+    """
+    
+    if verbose:
+        print("\n" + "="*70)
+        print("ITERATIVE FLEXURE CORRECTION")
+        print("="*70)
+    
+    # === ШАГ 0: Интерполяция наблюдений на сетку модели ===
+    obs_flux_interp = np.interp(model_wave, obs_wave, obs_flux)
+    
+    # === ШАГ 1: Начальные реперные точки ===
+    # Создаём маску один раз
+    initial_mask = model_diff < threshold
+    if np.sum(initial_mask) < 5:
+        initial_mask = model_diff < threshold * 1.5
+        if verbose:
+            print(f"Relaxed threshold to {threshold * 1.5:.2f}")
+    
+    # Сохраняем индексы реперных точек
+    ref_indices = np.where(initial_mask)[0]
+    x_ref = model_wave[ref_indices]
+    
+    if verbose:
+        print(f"Initial reference points: {len(x_ref)}")
+    
+    # === ШАГ 2: Итеративная коррекция ===
+    current_obs_flux = obs_flux.copy()
+    corrections = []
+    correction_polys = []
+    
+    history = {
+        'iterations': [],
+        'rms_residuals': [],
+        'median_spectrum': [],
+        'flexure_amplitude': []
+    }
+    
+    for iteration in range(n_iterations):
+        if verbose:
+            print(f"\n--- Iteration {iteration + 1}/{n_iterations} ---")
+        
+        # 2.1 Интерполируем текущий спектр на сетку модели
+        current_obs_interp = np.interp(model_wave, obs_wave, current_obs_flux)
+        
+        # 2.2 Вычисляем отношения для реперных точек
+        y_fit = current_obs_interp[ref_indices] / model_flux[ref_indices]
+        
+        # 2.3 Очистка выбросов
+        median_y = np.median(y_fit)
+        mad = np.median(np.abs(y_fit - median_y))
+        if mad > 0:
+            clip_mask = np.abs(y_fit - median_y) < sigma_clip * mad
+        else:
+            clip_mask = np.ones(len(y_fit), dtype=bool)
+        
+        x_fit = x_ref[clip_mask]
+        y_fit = y_fit[clip_mask]
+        
+        if verbose:
+            print(f"  After sigma-clipping: {len(x_fit)} points")
+        
+        # 2.4 Дополнительная итеративная очистка
+        for _ in range(2):
+            if len(x_fit) < 10:
+                break
+            try:
+                temp_degree = min(2, poly_degree)
+                coeffs_temp = np.polyfit(x_fit, y_fit, temp_degree)
+                poly_temp = np.poly1d(coeffs_temp)
+                residuals = y_fit - poly_temp(x_fit)
+                std_res = np.std(residuals)
+                if std_res > 0:
+                    mask_clean = np.abs(residuals) < sigma_clip * std_res
+                    x_fit = x_fit[mask_clean]
+                    y_fit = y_fit[mask_clean]
+                else:
+                    break
+            except:
+                break
+        
+        if verbose:
+            print(f"  After iterative cleaning: {len(x_fit)} points")
+        
+        # 2.5 Подгонка полинома
+        try:
+            coeffs = np.polyfit(x_fit, y_fit, poly_degree)
+            poly_func = np.poly1d(coeffs)
+        except np.linalg.LinAlgError:
+            if verbose:
+                print(f"  WARNING: Polyfit failed, reducing degree")
+            poly_degree = max(3, poly_degree - 1)
+            coeffs = np.polyfit(x_fit, y_fit, poly_degree)
+            poly_func = np.poly1d(coeffs)
+        
+        # 2.6 Измеряем остаточное гнутие
+        poly_full = poly_func(obs_wave)
+        temp_normalized = current_obs_flux / poly_full
+        
+        # Сглаживаем для измерения гнутия
+        flexure_smooth = gaussian_filter1d(temp_normalized, 
+                                           sigma=flexure_smooth_width/2.0, 
+                                           mode='reflect')
+        
+        flexure_amplitude = np.std(flexure_smooth - 1.0)
+        if verbose:
+            print(f"  Flexure amplitude: {flexure_amplitude:.6f}")
+        
+        # 2.7 Вычисляем финальную коррекцию для этой итерации
+        correction = poly_full * flexure_smooth
+        corrections.append(correction)
+        correction_polys.append(poly_func)
+        
+        # 2.8 Применяем коррекцию
+        current_obs_flux = current_obs_flux / correction
+        
+        # 2.9 Сохраняем историю
+        history['iterations'].append(iteration + 1)
+        history['rms_residuals'].append(np.std(y_fit - poly_func(x_fit)))
+        history['median_spectrum'].append(np.median(current_obs_flux))
+        history['flexure_amplitude'].append(flexure_amplitude)
+        
+        # 2.10 Проверка сходимости
+        if iteration > 0:
+            improvement = (history['flexure_amplitude'][-2] - history['flexure_amplitude'][-1]) / (history['flexure_amplitude'][-2] + 1e-10)
+            if improvement < 0.01 and flexure_amplitude < 0.001:
+                if verbose:
+                    print(f"  Converged after {iteration + 1} iterations")
+                break
+        
+        # 2.11 Обновление реперных точек для следующей итерации
+        # Пересчитываем diff для текущего спектра
+        current_diff = np.abs(current_obs_interp / model_flux - 1.0)
+        
+        if iteration < 2:
+            # На первых итерациях используем исходный порог
+            new_mask = model_diff < threshold
+        else:
+            # На поздних итерациях используем более строгий порог
+            new_mask = (model_diff < threshold * 0.8) & (current_diff < 0.15)
+            if np.sum(new_mask) < 100:
+                new_mask = model_diff < threshold * 0.8
+        
+        # Обновляем индексы реперных точек
+        ref_indices = np.where(new_mask)[0]
+        x_ref = model_wave[ref_indices]
+        
+        if verbose:
+            print(f"  Updated reference points: {len(x_ref)}")
+    
+    # === ШАГ 3: Финальная коррекция ===
+    final_normalized = obs_flux.copy()
+    for correction in corrections:
+        final_normalized = final_normalized / correction
+    
+    # === ШАГ 4: Принудительная нормализация ===
+    median_final = np.median(final_normalized)
+    if abs(median_final - 1.0) > 0.01:
+        if verbose:
+            print(f"\nFinal median correction: {median_final:.4f} -> 1.0")
+        final_normalized = final_normalized / median_final
+    
+    # === ШАГ 5: Визуализация ===
+    if plot:
+        fig, axes = plt.subplots(3, 2, figsize=(15, 12))
+        
+        # 1. Эволюция RMS
+        ax = axes[0, 0]
+        ax.plot(history['iterations'], history['rms_residuals'], 'bo-', linewidth=2)
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('RMS Residuals')
+        ax.set_title('Evolution of fit quality')
+        ax.grid(True, alpha=0.3)
+        
+        # 2. Эволюция гнутия
+        ax = axes[0, 1]
+        ax.plot(history['iterations'], history['flexure_amplitude'], 'ro-', linewidth=2)
+        ax.set_xlabel('Iteration')
+        ax.set_ylabel('Flexure amplitude (std)')
+        ax.set_title('Evolution of flexure amplitude')
+        ax.grid(True, alpha=0.3)
+        
+        # 3. Нормированный спектр (финальный)
+        ax = axes[1, 0]
+        mid = len(obs_wave) // 2
+        window = min(500, len(obs_wave) // 4)
+        idx_range = slice(mid - window, mid + window)
+        ax.plot(obs_wave[idx_range], final_normalized[idx_range], 'b-', 
+                linewidth=1, alpha=0.7, label='Final')
+        ax.axhline(y=1.0, color='r', linestyle='--', linewidth=2)
+        ax.set_xlabel('Wavelength')
+        ax.set_ylabel('Normalized Flux')
+        ax.set_title('Final normalized spectrum (center)')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # 4. Сравнение до/после (весь спектр)
+        ax = axes[1, 1]
+        smooth_final = gaussian_filter1d(final_normalized, sigma=20, mode='reflect')
+        orig_norm = obs_flux / np.median(obs_flux)
+        
+        ax.plot(obs_wave, orig_norm, 'b-', alpha=0.3, label='Original (scaled)')
+        ax.plot(obs_wave, final_normalized, 'r-', alpha=0.7, label='Corrected')
+        ax.axhline(y=1.0, color='green', linestyle='--', alpha=0.5)
+        ax.set_xlabel('Wavelength')
+        ax.set_ylabel('Flux')
+        ax.set_title('Spectrum before and after correction')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        # 5. Остаточное гнутие
+        ax = axes[2, 0]
+        smooth_final_flux = gaussian_filter1d(final_normalized, sigma=50, mode='reflect')
+        residual_flexure = smooth_final_flux - 1.0
+        ax.plot(obs_wave, residual_flexure, 'g-', linewidth=1, alpha=0.7)
+        ax.axhline(y=0, color='black', linestyle='--', linewidth=1)
+        ax.axhline(y=0.01, color='orange', linestyle=':', alpha=0.5)
+        ax.axhline(y=-0.01, color='orange', linestyle=':', alpha=0.5)
+        ax.set_xlabel('Wavelength')
+        ax.set_ylabel('Residual flexure')
+        ax.set_title(f'Residual flexure (RMS = {np.std(residual_flexure):.6f})')
+        ax.grid(True, alpha=0.3)
+        
+        # 6. Гистограмма финального спектра
+        ax = axes[2, 1]
+        hist_data = final_normalized[(final_normalized > 0.5) & (final_normalized < 1.5)]
+        ax.hist(hist_data, bins=50, edgecolor='black', alpha=0.7)
+        ax.axvline(x=1.0, color='r', linestyle='--', linewidth=2)
+        ax.axvline(x=np.median(hist_data), color='orange', linestyle='--', 
+                   label=f'Median = {np.median(hist_data):.4f}')
+        ax.set_xlabel('Normalized Flux')
+        ax.set_ylabel('Count')
+        ax.set_title('Distribution of final spectrum')
+        ax.legend()
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.show()
+        
+        # Статистика
+        print("\n" + "="*70)
+        print("FINAL STATISTICS")
+        print("="*70)
+        print(f"Number of iterations: {len(history['iterations'])}")
+        print(f"Final median: {np.median(final_normalized):.6f}")
+        print(f"Final RMS (spectrum): {np.std(final_normalized):.6f}")
+        print(f"Final flexure amplitude: {np.std(smooth_final_flux - 1.0):.6f}")
+        if len(history['flexure_amplitude']) > 1:
+            print(f"Improvement factor: {history['flexure_amplitude'][0] / history['flexure_amplitude'][-1]:.2f}x")
+        print("="*70)
+    
+    return final_normalized, correction_polys, history
