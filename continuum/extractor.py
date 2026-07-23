@@ -21,11 +21,9 @@ folder_to_spectra = dir_path + "/spectra/R_Cam/"
 spectra_content = os.listdir(folder_to_spectra)
 
 
-
-
 # CONFIG
-plot=True
-save=False
+plot = True
+save = False
 folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
 
 spectra_content = [
@@ -43,7 +41,6 @@ spectra_path = folder_to_spectra + spectra_content[num] + "/"
 data = make_txt_from_spectra(spectra_path, True, True)
 orders = split_spectral_orders(data)
 synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
-
 
 
 hdu_list = fits.open("e619020c.fits")
@@ -121,14 +118,12 @@ obs_norm_p = np.concatenate(obs_norm_p)
 obs_norm_s = np.concatenate(obs_norm_s)
 
 
-
 extractor = ModelGridExtractor(folder_path)
 params_df = extractor.load_parameters()
 print("\nПараметры моделей:")
 print(params_df.head())
 spectra = extractor.load_spectra()
 grid = extractor.build_grid()
-
 
 
 for key in grid.keys():
@@ -168,8 +163,6 @@ delta_arr_mean = np.mean(delta_arr, axis=0)
 delta_arr_mean_smart = np.mean(delta_arr_smart, axis=0)
 
 
-
-
 p_obs, p_flux, p_flux_new = normalize_with_poly(
     rep_wave,
     rep_flux,
@@ -177,13 +170,11 @@ p_obs, p_flux, p_flux_new = normalize_with_poly(
     obs_norm_p[:, 0],
     obs_norm_p[:, 1],
     poly_degree=7,
-    plot=plot
+    plot=plot,
 )
 
 if plot:
     with plt.style.context(["science", "ieee"]):
-
-
         fig, ax = plt.subplots()
         ax.plot(obs_norm_p[:, 0], p_obs)
         ax.set_title("Polynorm approximation")
@@ -197,36 +188,52 @@ if plot:
         ax.set_yscale("log")
 
         fig, ax = plt.subplots()
-        scatter = ax.scatter(grid["0.spec"]['spectrum']['wavelength'], grid["0.spec"]['spectrum']['flux_norm'], c=delta_arr_mean, cmap='plasma', s=1, alpha=0.5)
+        scatter = ax.scatter(
+            grid["0.spec"]["spectrum"]["wavelength"],
+            grid["0.spec"]["spectrum"]["flux_norm"],
+            c=delta_arr_mean,
+            cmap="plasma",
+            s=1,
+            alpha=0.5,
+        )
         ax.set_title("Delta graph")
         ax.set_xlabel(r"Wavelength, \AA")
         ax.set_ylabel(r"mean delta flux")
         cbar = fig.colorbar(scatter, ax=ax)
-        cbar.set_label('Delta', fontsize=12)
+        cbar.set_label("Delta", fontsize=12)
 
         fig, ax = plt.subplots()
         good_delta_data = np.where(delta_arr_mean < 0.1)
-        sc = ax.scatter(grid["0.spec"]['spectrum']['wavelength'][good_delta_data], grid["0.spec"]['spectrum']['flux_norm'][good_delta_data], c=delta_arr_mean[good_delta_data], cmap='plasma', s=1)
+        sc = ax.scatter(
+            grid["0.spec"]["spectrum"]["wavelength"][good_delta_data],
+            grid["0.spec"]["spectrum"]["flux_norm"][good_delta_data],
+            c=delta_arr_mean[good_delta_data],
+            cmap="plasma",
+            s=1,
+        )
         cbar = fig.colorbar(sc, ax=ax)
-        cbar.set_label('Delta', fontsize=12)
-
+        cbar.set_label("Delta", fontsize=12)
 
         fig, ax = plt.subplots()
         for key in grid.keys():
             if key == "param_grid":
                 pass
             else:
-                wl = grid[key]['spectrum']['wavelength']
-                flux = grid[key]['spectrum']['flux_norm']
-                params = grid[key]['parameters']
-                label = f"{params['specname']}, teff: {params['teff']}, log g: {params['logg']}, [Fe/H] = {params["feh"]}"
+                wl = grid[key]["spectrum"]["wavelength"]
+                flux = grid[key]["spectrum"]["flux_norm"]
+                params = grid[key]["parameters"]
+                label = f"{params['specname']}, teff: {params['teff']}, log g: {params['logg']}, [Fe/H] = {params['feh']}"
                 ax.plot(wl, flux, label=label)
                 ax.legend()
 
-
         fig, ax = plt.subplots(figsize=(4, 2))
         ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="flat-corrected", color="navy")
-        ax.plot(obs_norm[:, 0], obs_norm_p[:, 1], label="parabola-corrected", color='crimson')
+        ax.plot(
+            obs_norm[:, 0],
+            obs_norm_p[:, 1],
+            label="parabola-corrected",
+            color="crimson",
+        )
         ax.plot(obs_norm_s[:, 0], obs_norm_s[:, 1], label="uncorrected", color="black")
         ax.set_xlim((6613, 6685))
         ax.set_ylim((0, 2))
@@ -234,10 +241,13 @@ if plot:
 
         fig, ax = plt.subplots()
         ax.plot(orders[order][:, 0], orders[order][:, 1], label="obs")
-        ax.plot(orders[order][:, 0], orders[order][:, 1] * yn_interpolated, label="compensated")
+        ax.plot(
+            orders[order][:, 0],
+            orders[order][:, 1] * yn_interpolated,
+            label="compensated",
+        )
         ax.legend()
 
         plt.tight_layout()
-
 
     plt.show()
