@@ -323,7 +323,6 @@ def normalize_with_poly(model_wave, model_flux, model_diff,
         plt.title('Spectrum before and after normalization (center)')
         
         plt.tight_layout()
-        plt.show()
     
     # 7. Применяем полином ко всему спектру
     poly_full = poly_func(obs_wave)
