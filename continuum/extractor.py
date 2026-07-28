@@ -13,8 +13,6 @@ from process import (
     fit_parabola,
     split_spectral_orders,
     move_parabola,
-    normalize_with_poly,
-    iterative_flexure_correction,
 )
 
 dir_path = os.path.dirname(os.path.realpath(__file__)).replace("continuum", "")
@@ -67,10 +65,12 @@ for i in range(len(image_data)):
 obs_norm = []
 obs_norm_p = []
 obs_norm_s = []
+order_bound = []
 
 for order in range(len(orders) - 1):
     x1 = np.mean(orders[order][:, 0])
-    print(f"Center of order {order} is {x1} AA")
+    order_bound.append((min(orders[order][:, 0]), max(orders[order][:, 0])))
+    # print(f"Center of order {order} is {x1} AA")
     a, b, c, yn, yn_p = (
         fit_arr[order]["a"],
         fit_arr[order]["b"],
@@ -164,32 +164,9 @@ delta_arr_mean = np.mean(delta_arr, axis=0)
 delta_arr_mean_smart = np.mean(delta_arr_smart, axis=0)
 
 
-p_obs, p_flux, p_flux_new = normalize_with_poly(
-    rep_wave,
-    rep_flux,
-    delta_arr_mean_smart,
-    obs_norm_p[:, 0],
-    obs_norm_p[:, 1] - 0.5,
-    poly_degree=5,
-    plot=plot,
-    force_normalize=True
-)
-
-
-p_obs, p_flux_corr, history = iterative_flexure_correction(
-    model_wave=rep_wave,
-    model_flux=rep_flux,
-    model_diff=delta_arr_mean_smart,
-    obs_wave=obs_norm_p[:, 0],
-    obs_flux=obs_norm_p[:, 1],
-    threshold=0.1,
-    poly_degree=7,
-    n_iterations=5,
-    flexure_smooth_width=150,  # настройте под ваше гнутие
-    sigma_clip=2.5,
-    plot=True,
-    verbose=True
-)
+mol_data = np.genfromtxt("/home/delta/exocross/input/ZrO_all.xsec")
+molecular_wave = 1e8 / mol_data[:, 0][::-1]
+molecular_cross_section = mol_data[:, 1][::-1]
 
 
 if plot:
