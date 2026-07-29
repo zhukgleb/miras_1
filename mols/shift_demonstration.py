@@ -116,4 +116,5 @@ with plt.style.context(["science", "ieee"]):
 
     plt.tight_layout()
     plt.savefig("shifts.pdf")
+    plt.savefig("shift.png", dpi=300)
     # plt.show()
