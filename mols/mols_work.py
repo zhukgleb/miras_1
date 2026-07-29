@@ -128,7 +128,7 @@ class Molecule:
         od2 = other.get_optical_depth()
         
         # Интерполируем на общую сетку длин волн
-        # Берем пересечение длин волн
+        # Берем пересечение длин волн/
         min_wavelength = max(od1[0, 0], od2[0, 0])
         max_wavelength = min(od1[-1, 0], od2[-1, 0])
         

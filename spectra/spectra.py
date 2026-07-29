@@ -59,14 +59,21 @@ bcvr_arr = [9193.632, 6700.746, -4927.691, -4838.691, 2649.248, 8686.852, 5704.0
 addition = [2000, -2000, -10000, 8000, 0, -17000, -7000]  # addition by eye
 na_addition = [-13 * 1000, 0.0, 1 * 1000, -17 * 1000, 0, -9 * 1000, 0]
 # rv = -31 * 1000
-rv = +45 * 1000
+# rv = +45 * 1000
+rv = 42 * 1000
 # rv = -45 ? -19 TiO
 bcvr_arr = [
     bcvr_arr[x] + addition[x] + rv + na_addition[x] for x in range(len(bcvr_arr))
 ]
 # bcvr_arr = bcvr_arr + addition
 
-print(bcvr_arr)
+bcvr_arr = [4450.769,
+6698.387,
+-5093.433,
+-6032.999,
+10471.263,
+-10221.369,
+5778.002]
 
 for i in range(len(rd)):
     _, rd[i][:, 0] = pyasl.dopplerShift(
@@ -103,7 +110,6 @@ y = h_alpha[:, 1]
 # y = y - 7500
 y = y - np.median(y)
 
-
 # date = [
 #    "15.11.2011 \n 0.52",
 #    "02.08.2012 \n 0.54",
@@ -133,7 +139,7 @@ lines = [
     r"$H_{\delta}$",
     r"$H_{\epsilon}$",
 ]
-plot = True
+plot = False
 save = True
 
 
@@ -188,6 +194,8 @@ if plot:
                     "na_" + str(i) + ".txt",
                     np.column_stack((na_data[i][:, 0], na_data[i][:, 1])),
                 )
+        na_synth = np.genfromtxt("synth_na.txt")
+        plt.plot(na_synth[:, 0], na_synth[:, 1], label="synth")
         plt.legend()
         plt.show()
 
