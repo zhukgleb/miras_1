@@ -115,6 +115,40 @@ with plt.style.context(["science", "ieee"]):
     ax[1].set_ylabel(r"Relative intensity, \AA")
 
     plt.tight_layout()
-    plt.savefig("shifts.pdf")
-    plt.savefig("shift.png", dpi=300)
-    # plt.show()
+    #    plt.savefig("shifts.pdf")
+    #    plt.savefig("shift.png", dpi=300)
+
+    fig, ax = plt.subplots()
+    ax.set_title(r"H_{\alpha} region")
+    ax.set_xlim((6550, 6570))
+    ax.set_ylim((0, 1.2))
+
+    ax.plot([6562.8, 6562.8], [0, 1], label=r"H_{\alpha} rest")
+    ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="obs")
+    ax.plot(
+        zro_spectrum[:, 0],
+        zro_spectrum[:, 1],
+        label=f"ZrO shifted on {rv} km/s",
+        ls="-",
+        alpha=0.6,
+        lw=1,
+    )
+    ax.plot(
+        tio_spectrum[:, 0],
+        tio_spectrum[:, 1],
+        label=f"TiO shifted on {rv_tio} km/s",
+        ls="-",
+        alpha=0.6,
+        lw=1,
+    )
+    ax.plot(
+        combo_spectrum[:, 0],
+        combo_spectrum[:, 1],
+        label=f"Combined spectra TiO and ZrO shifted on {rv_combo} km/s",
+        ls="-",
+        alpha=0.6,
+        lw=1,
+    )
+
+    ax.legend()
+    plt.show()
