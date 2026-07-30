@@ -3,10 +3,15 @@ import PyAstronomy.pyasl as pyasl
 import matplotlib.pyplot as plt
 import scienceplots
 
+obs_norm = np.genfromtxt(
+    "/home/delta/miras_1/continuum/6/obs_norm_zro_corrected.txt", skip_header=1
+)
 
 obs_norm = np.genfromtxt(
-    "/home/delta/miras_1/continuum/obs_norm_zro_corrected.txt", skip_header=1
+    "/home/delta/miras_1/continuum/obs_norm_molecular_corrected.txt", skip_header=1
 )
+
+
 zro_spectrum = np.genfromtxt(
     "/home/delta/miras_1/continuum/zro_normalized.txt", skip_header=1
 )
@@ -18,14 +23,20 @@ combo_spectrum = np.genfromtxt(
     "/home/delta/miras_1/continuum/molecular_combined.txt", skip_header=1
 )
 
-
 synth_spectrum = np.genfromtxt(
     "/home/delta/miras_1/continuum/2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters/0.spec"
 )
+
 # rv = -103.5
 rv = -80.5
 rv_tio = -79
 rv_combo = -80
+
+# for 6 spectra
+# rv = -80.5
+# rv_tio = -79
+# rv_combo = -80
+
 
 _, zro_spectrum[:, 0] = pyasl.dopplerShift(
     zro_spectrum[:, 0], zro_spectrum[:, 1], rv, edgeHandling="firstlast"
@@ -119,11 +130,11 @@ with plt.style.context(["science", "ieee"]):
     #    plt.savefig("shift.png", dpi=300)
 
     fig, ax = plt.subplots()
-    ax.set_title(r"H_{\alpha} region")
+    ax.set_title(r"$H_{\alpha}$ region")
     ax.set_xlim((6550, 6570))
     ax.set_ylim((0, 1.2))
 
-    ax.plot([6562.8, 6562.8], [0, 1], label=r"H_{\alpha} rest")
+    ax.plot([6562.8, 6562.8], [0, 1], label=r"$H_{\alpha}$ rest")
     ax.plot(obs_norm[:, 0], obs_norm[:, 1], label="obs")
     ax.plot(
         zro_spectrum[:, 0],
