@@ -170,9 +170,6 @@ delta_arr_mean = np.mean(delta_arr, axis=0)
 delta_arr_mean_smart = np.mean(delta_arr_smart, axis=0)
 
 
-# ==================== РАБОТА С МОЛЕКУЛЯРНЫМИ СПЕКТРАМИ (ZrO и TiO) ====================
-
-
 def planck_function(wavelength, temperature):
     """
     Функция Планка для черного тела
@@ -188,7 +185,8 @@ def normalize_molecular_spectrum(
     mol_wave, mol_cross_section, temp=1500, column_density=1e16
 ):
     """
-    Нормировка молекулярного спектра на черное тело
+    Нормировка молекулярного спектра на черное тело,
+    хуево, но должно работать
     """
     # Оптическая толщина: tau = N * sigma
     optical_depth = column_density * mol_cross_section
@@ -199,10 +197,9 @@ def normalize_molecular_spectrum(
     # Поток с учетом поглощения: I = I0 * exp(-tau)
     transmitted_intensity = bb_intensity * np.exp(-optical_depth)
 
-    # Нормировка на континуум
+    # Считаем континуум
     normalized_spectrum = transmitted_intensity / bb_intensity
 
-    # Также возвращаем оптическую глубину для комбинирования
     return normalized_spectrum, optical_depth, bb_intensity
 
 
@@ -218,17 +215,16 @@ def get_optical_depth_from_normalized(normalized_spectrum):
 
 def combine_molecular_spectra_correct(obs_wave, molecular_spectra_list):
     """
-    ПРАВИЛЬНОЕ комбинирование молекулярных спектров через сложение оптических глубин
 
-    Физика: I_combined = I0 * exp(-(tau1 + tau2 + ...))
+    I_combined = I0 * exp(-(tau1 + tau2 + ...))
     где tau_i = -ln(I_i/I0) - оптическая глубина каждого компонента
 
-    Parameters:
+    Параметры:
     -----------
     obs_wave : array
-        Длины волн наблюдений
+        Длина волны
     molecular_spectra_list : list of tuples (wave, spectrum, name)
-        Список молекулярных спектров (нормированных)
+        молекулярные спектры (нормированные)
 
     Returns:
     --------
@@ -264,41 +260,30 @@ def combine_molecular_spectra_correct(obs_wave, molecular_spectra_list):
     return combined_spectrum, optical_depths, total_optical_depth
 
 
-# ============ ЗАГРУЗКА МОЛЕКУЛЯРНЫХ ДАННЫХ ============
-
-# 1. ZrO
 zro_data = np.genfromtxt("/home/delta/exocross/input/ZrO_all.xsec")
 zro_wave = 1e8 / zro_data[:, 0][::-1]
 zro_cross_section = zro_data[:, 1][::-1]
 
-# 2. TiO
 tio_data = np.genfromtxt("/home/delta/exocross/input/TiO_all.xsec")
 tio_wave = 1e8 / tio_data[:, 0][::-1]
 tio_cross_section = tio_data[:, 1][::-1]
 
-# ============ ПАРАМЕТРЫ ДЛЯ КАЖДОЙ МОЛЕКУЛЫ ============
 
-# ZrO параметры
-T_zro = 3000  # K
-column_density_zro = 3e15  # cm^-2
+T_zro = 3000
+column_density_zro = 4e15  # cm^-2
 
-# TiO параметры (отдельные!)
-T_tio = 3000  # K - своя температура для TiO
-column_density_tio = 5e15  # cm^-2 - своя колонковая концентрация
+T_tio = 3000
+column_density_tio = 3e15
 
-# ============ ПОЛУЧЕНИЕ НОРМИРОВАННЫХ СПЕКТРОВ ============
 
-# ZrO спектр (получаем и нормированный, и оптическую глубину)
 zro_norm_spectrum, zro_optical_depth, zro_bb = normalize_molecular_spectrum(
     zro_wave, zro_cross_section, T_zro, column_density_zro
 )
 
-# TiO спектр
 tio_norm_spectrum, tio_optical_depth, tio_bb = normalize_molecular_spectrum(
     tio_wave, tio_cross_section, T_tio, column_density_tio
 )
 
-# Интерполяция на сетку obs_norm
 zro_norm_obs_interp = np.interp(
     obs_norm[:, 0], zro_wave, zro_norm_spectrum, left=1.0, right=1.0
 )
@@ -307,21 +292,16 @@ tio_norm_obs_interp = np.interp(
     obs_norm[:, 0], tio_wave, tio_norm_spectrum, left=1.0, right=1.0
 )
 
-# ============ ПРАВИЛЬНОЕ КОМБИНИРОВАНИЕ ЧЕРЕЗ ОПТИЧЕСКИЕ ГЛУБИНЫ ============
 
-# Список молекулярных спектров для комбинирования
 molecular_spectra_list = [
     (zro_wave, zro_norm_spectrum, "ZrO"),
     (tio_wave, tio_norm_spectrum, "TiO"),
 ]
 
-# Комбинируем спектры через сложение оптических глубин (физически корректно)
 combined_molecular_spectrum, optical_depths, total_optical_depth = (
     combine_molecular_spectra_correct(obs_norm[:, 0], molecular_spectra_list)
 )
 
-# Для проверки: сравниваем с перемножением (неправильный способ)
-zro_tio_multiply = zro_norm_obs_interp * tio_norm_obs_interp
 
 print("\n=== МОЛЕКУЛЯРНЫЕ ПАРАМЕТРЫ ===")
 print(f"ZrO: T = {T_zro} K, N = {column_density_zro:.0e} cm^-2")
@@ -331,19 +311,13 @@ print(f"  I_combined = I0 * exp(-(tau_ZrO + tau_TiO))")
 print(f"\nПроверка:")
 print(f"  Min ZrO spectrum: {np.min(zro_norm_obs_interp):.4f}")
 print(f"  Min TiO spectrum: {np.min(tio_norm_obs_interp):.4f}")
-print(f"  Min combined (correct): {np.min(combined_molecular_spectrum):.4f}")
-print(f"  Min combined (multiply - WRONG): {np.min(zro_tio_multiply):.4f}")
-print(
-    f"  Разница: {np.min(zro_tio_multiply) - np.min(combined_molecular_spectrum):.4f}"
-)
-
-# ==================== ИСПРАВЛЕННАЯ НОРМИРОВКА С УЧЕТОМ ОБОИХ МОЛЕКУЛ ====================
+print(f"  Min combined : {np.min(combined_molecular_spectrum):.4f}")
 
 
 def normalize_with_delta_and_molecular(
     obs_wave,
     obs_flux,
-    molecular_spectrum,  # теперь комбинированный спектр (правильный)
+    molecular_spectrum,
     rep_wave,
     rep_flux,
     delta_arr_mean,
