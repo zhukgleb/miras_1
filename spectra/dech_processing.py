@@ -11,6 +11,7 @@ from numpy import (
     unique,
     zeros,
     int32,
+    uint32,
     array,
     where,
 )
@@ -122,6 +123,7 @@ def read_100(path2file: str, headlen=10, fmtdat="h"):
     data = zeros((ord_num, ord_len), int32)
     for i in range(ord_num):
         data[i] = unpack(fmt_str, bindat.read(bsize * ord_len))
+        data[i] += 10000  # A CRUNCH!!!!!!!
     return objname, ord_num, ord_len, data
 
 
@@ -201,9 +203,8 @@ def make_txt_from_spectra(working_folder: str, verbose=True, cutbad=True):
             wavelenght = resulted_data[:, 0][i]
             clear_wave.append(resulted_data[:, 0][i])
             clear_flux.append(resulted_data[:, 1][i])
-
-    # ccm_data = read_ccm(working_folder + ccm_name)
     resulted_data = column_stack((clear_wave, clear_flux))
+
     return resulted_data
 
 
