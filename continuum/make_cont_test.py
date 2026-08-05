@@ -24,7 +24,7 @@ spectra_content = os.listdir(folder_to_spectra)
 
 
 # CONFIG
-plot = False
+plot = True
 save = True
 folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
 
@@ -37,21 +37,29 @@ spectra_content = [
     "20140417",
     "20140811",
 ]
+
+# rv 6: 35.4
+
 bcvr_arr = [4450.769, 6698.387, -5093.433, -6032.999, 10471.263, -10221.369, 5778.002]
-num = 6
+num = 1
 spectra_path = folder_to_spectra + spectra_content[num] + "/"
+
+
 data = make_txt_from_spectra(spectra_path, True, True)
 _, data[:, 0] = pyasl.dopplerShift(
-    data[:, 0], data[:, 1], bcvr_arr[6] / 1000 + 36.5, edgeHandling="firstlast"
+    data[:, 0], data[:, 1], bcvr_arr[6] / 1000 + 35.4, edgeHandling="firstlast"
 )
 
+if plot:
+    fig, ax = plt.subplots()
+    ax.plot(data[:, 0], data[:, 1])
+    plt.show()
 
 orders = split_spectral_orders(data)
 synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
 
 
 hdu_list = fits.open("e619020c.fits")
-hdu_list.info()
 
 image_data = hdu_list[0].data
 fit_arr = []
@@ -75,7 +83,7 @@ obs_norm_p = []
 obs_norm_s = []
 order_bound = []
 
-for order in range(len(orders) - 1):
+for order in range(len(orders)):
     x1 = np.mean(orders[order][:, 0])
     order_bound.append((min(orders[order][:, 0]), max(orders[order][:, 0])))
     a, b, c, yn, yn_p = (
@@ -330,8 +338,52 @@ def normalize_with_delta_and_molecular(
     Нормировка спектра с использованием:
     1. Массива delta для определения доверенных точек (где модели близки к реперу)
     2. Комбинированного молекулярного спектра (ZrO + TiO) для учета поглощения
-    3. Итеративной подгонки континуума с принудительным ограничением flux <= 1
+    3. Итеративной подгонки континуума
+    4. Эмиссионные линии водорода (H-alpha, H-beta и др.) НЕ влияют на фитирование континуума
     """
+
+    # ============ ОПРЕДЕЛЕНИЕ ЭМИССИОННЫХ ЛИНИЙ ВОДОРОДА ============
+    # Длины волн основных линий Бальмера в ангстремах
+    hydrogen_lines = {
+        "H_alpha": 6562.8,
+        "H_beta": 4861.3,
+        "H_gamma": 4340.5,
+        "H_delta": 4101.7,
+        "H_epsilon": 3970.1,
+        "H_zeta": 3889.0,
+        "H_eta": 3835.4,
+        "H_theta": 3797.9,
+        "H_iota": 3770.6,
+        "H_kappa": 3750.2,
+        "H_lambda": 3734.4,
+        "H_mu": 3712.0,
+        "H_nu": 3697.2,
+        "H_xi": 3682.8,
+        "H_o": 3670.0,
+    }
+
+    # Ширина зоны вокруг каждой линии (в ангстремах)
+    line_width = 4.0  # ±4 ангстрема
+
+    # Создаем маску для эмиссионных линий
+    emission_mask = np.zeros(len(obs_wave), dtype=bool)
+
+    for line_name, line_wavelength in hydrogen_lines.items():
+        # Находим точки в пределах line_width от линии
+        line_mask = np.abs(obs_wave - line_wavelength) < line_width
+        emission_mask = emission_mask | line_mask
+
+        # Проверяем, есть ли линия в диапазоне
+        if np.sum(line_mask) > 0:
+            print(
+                f"  {line_name}: {line_wavelength:.1f} A - маскировано {np.sum(line_mask)} точек"
+            )
+
+    print(f"\n=== ЭМИССИОННЫЕ ЛИНИИ ===")
+    print(f"Замаскировано {np.sum(emission_mask)} точек в эмиссионных линиях водорода")
+    print(f"Ширина зоны: ±{line_width} A")
+
+    # ============ СОЗДАНИЕ МАСКИ ДОВЕРЕННЫХ ТОЧЕК ============
 
     # Интерполяция delta на длины волн obs
     delta_interp = np.interp(obs_wave, rep_wave, delta_arr_mean, left=1.0, right=1.0)
@@ -339,7 +391,6 @@ def normalize_with_delta_and_molecular(
     # Интерполяция реперного спектра
     rep_interp = np.interp(obs_wave, rep_wave, rep_flux, left=1.0, right=1.0)
 
-    # СОЗДАНИЕ МАСКИ ДОВЕРЕННЫХ ТОЧЕК
     # 1. Точки, где delta мала (модели близки к реперу)
     good_delta_mask = delta_interp < delta_threshold
 
@@ -349,54 +400,76 @@ def normalize_with_delta_and_molecular(
     # 3. Точки, где реперный спектр близок к континууму (нет сильных линий)
     good_rep_mask = rep_interp > 0.95
 
-    # 4. Объединенная маска - точки, которым можно доверять
-    trust_mask = good_delta_mask & good_molecular_mask & good_rep_mask
+    # 4. Исключаем эмиссионные линии водорода
+    # Точки в эмиссионных линиях НЕ должны использоваться для фитирования континуума
+    good_non_emission_mask = ~emission_mask
+
+    # 5. Объединенная маска - точки, которым можно доверять (ИСКЛЮЧАЯ эмиссионные линии)
+    trust_mask = (
+        good_delta_mask & good_molecular_mask & good_rep_mask & good_non_emission_mask
+    )
 
     print(f"\n=== МАСКА ДОВЕРЕННЫХ ТОЧЕК ===")
     print(f"Доверенных точек: {np.sum(trust_mask)} из {len(obs_wave)}")
     print(f"  - По delta: {np.sum(good_delta_mask)}")
     print(f"  - По молекулярному спектру: {np.sum(good_molecular_mask)}")
     print(f"  - По реперу: {np.sum(good_rep_mask)}")
+    print(f"  - Исключено эмиссионных линий: {np.sum(emission_mask)}")
 
     if np.sum(trust_mask) < 20:
         print("Предупреждение: слишком мало доверенных точек, расширяем критерии")
-        trust_mask = good_delta_mask | (good_molecular_mask & good_rep_mask)
+        # Расширяем, но все равно исключаем эмиссионные линии
+        trust_mask = (
+            good_delta_mask | (good_molecular_mask & good_rep_mask)
+        ) & good_non_emission_mask
         print(f"Доверенных точек после расширения: {np.sum(trust_mask)}")
 
-    # ПЕРВАЯ ИТЕРАЦИЯ: подгонка континуума по доверенным точкам
+    # ============ ПОДГОНКА КОНТИНУУМА ============
+
+    # ПЕРВАЯ ИТЕРАЦИЯ: подгонка полинома по доверенным точкам
     x_fit = obs_wave[trust_mask]
     y_fit = obs_flux[trust_mask]
 
-    # Подгонка полинома
     if len(x_fit) > poly_order:
         coeffs = np.polyfit(x_fit, y_fit, poly_order)
         continuum = np.polyval(coeffs, obs_wave)
+        print(f"\n=== ПОДГОНКА КОНТИНУУМА ===")
+        print(f"Полином {poly_order}-го порядка по {len(x_fit)} точкам")
     else:
         # Если слишком мало точек, используем медиану
         continuum = np.median(obs_flux[trust_mask]) * np.ones_like(obs_wave)
+        print(f"\n=== ПОДГОНКА КОНТИНУУМА ===")
+        print(f"Использована медиана: {np.median(obs_flux[trust_mask]):.4f}")
 
     # Нормировка
     normalized = obs_flux / continuum
 
-    # Принудительное ограничение: убираем значения > 1
-    # Находим точки, где normalized > 1, и корректируем континуум
-    mask_above_one = normalized > 1.0
+    # ============ КОРРЕКЦИЯ КОНТИНУУМА (БЕЗ ТРОГАНИЯ ЭМИССИОННЫХ ЛИНИЙ) ============
+
+    # Принудительная коррекция только для точек НЕ в эмиссионных линиях
+    # Находим точки (не эмиссионные), где normalized > 1
+    mask_above_one = (normalized > 1.0) & ~emission_mask
 
     if np.sum(mask_above_one) > 0:
-        # Для точек выше 1, поднимаем континуум
-        # Используем итеративный подход
+        print(f"\n=== КОРРЕКЦИЯ КОНТИНУУМА ===")
+        print(f"Точек выше 1 (не эмиссионных): {np.sum(mask_above_one)}")
+
+        # Итеративная коррекция
         for iter_num in range(n_iter):
-            # Находим точки, где normalized > 1.01 (с небольшим запасом)
-            mask_high = normalized > 1.01
+            # Находим точки (не эмиссионные), где normalized > 1.01
+            mask_high = (normalized > 1.01) & ~emission_mask
 
             if np.sum(mask_high) == 0:
+                print(f"  Итерация {iter_num + 1}: коррекция не требуется")
                 break
 
-            # Добавляем эти точки к доверенным с весом, обратным отклонению
+            print(f"  Итерация {iter_num + 1}: точек выше 1.01: {np.sum(mask_high)}")
+
+            # Добавляем эти точки к доверенным
             high_wave = obs_wave[mask_high]
             high_flux = obs_flux[mask_high]
 
-            # Объединяем с доверенными точками
+            # Объединяем с доверенными точками (но все равно исключаем эмиссионные!)
             all_wave = np.concatenate([x_fit, high_wave])
             all_flux = np.concatenate([y_fit, high_flux])
 
@@ -410,28 +483,36 @@ def normalize_with_delta_and_molecular(
             # Обновляем нормировку
             normalized_new = obs_flux / continuum_new
 
-            # Проверяем, уменьшилось ли количество точек > 1
-            if np.sum(normalized_new > 1.01) < np.sum(mask_high):
+            # Проверяем, уменьшилось ли количество точек > 1 (не эмиссионных)
+            new_mask_high = (normalized_new > 1.01) & ~emission_mask
+            if np.sum(new_mask_high) < np.sum(mask_high):
                 continuum = continuum_new
                 normalized = normalized_new
             else:
                 break
 
-    # Финальная коррекция: гарантируем, что ни одна точка не превышает 1
-    # Для точек, где normalized > 1, используем интерполяцию между соседними точками < 1
+    # ============ ФИНАЛЬНЫЙ ШАГ ============
+
+    # НЕ ограничиваем эмиссионные линии! Они могут быть выше 1.
+    # Только для не-эмиссионных точек применяем ограничение
     final_normalized = normalized.copy()
-    mask_above = final_normalized > 1.0
 
-    if np.sum(mask_above) > 0:
-        # Находим индексы точек < 1
-        indices_below = np.where(~mask_above)[0]
+    # Для не-эмиссионных точек, которые все еще > 1, применяем интерполяцию
+    mask_non_emission_above = (final_normalized > 1.0) & ~emission_mask
 
-        if len(indices_below) > 1:
-            # Для каждой точки > 1, интерполируем по соседним
-            for i in np.where(mask_above)[0]:
-                # Находим ближайшие точки слева и справа с flux < 1
-                left_idx = indices_below[indices_below < i]
-                right_idx = indices_below[indices_below > i]
+    if np.sum(mask_non_emission_above) > 0:
+        print(f"\n=== ФИНАЛЬНАЯ КОРРЕКЦИЯ ===")
+        print(f"Не-эмиссионных точек выше 1: {np.sum(mask_non_emission_above)}")
+
+        # Находим индексы не-эмиссионных точек <= 1
+        indices_good = np.where((~emission_mask) & (final_normalized <= 1.0))[0]
+
+        if len(indices_good) > 1:
+            # Для каждой точки > 1 (не эмиссионной), интерполируем по соседним
+            for i in np.where(mask_non_emission_above)[0]:
+                # Находим ближайшие точки слева и справа с flux <= 1
+                left_idx = indices_good[indices_good < i]
+                right_idx = indices_good[indices_good > i]
 
                 if len(left_idx) > 0 and len(right_idx) > 0:
                     left = left_idx[-1]
@@ -445,8 +526,24 @@ def normalize_with_delta_and_molecular(
                     final_normalized[i] = final_normalized[left_idx[-1]]
                 elif len(right_idx) > 0:
                     final_normalized[i] = final_normalized[right_idx[0]]
-                else:
-                    final_normalized[i] = 0.99
+    else:
+        print(f"\n=== ФИНАЛЬНАЯ КОРРЕКЦИЯ ===")
+        print("Не-эмиссионных точек выше 1 не обнаружено")
+
+    # ============ ВЫВОД СТАТИСТИКИ ============
+
+    print(f"\n=== РЕЗУЛЬТАТЫ ===")
+    print(f"Максимальное значение (все точки): {np.max(final_normalized):.4f}")
+    print(
+        f"Максимальное значение (не эмиссионные): {np.max(final_normalized[~emission_mask]):.4f}"
+    )
+    print(
+        f"Максимальное значение (эмиссионные линии): {np.max(final_normalized[emission_mask]):.4f}"
+    )
+
+    # Проверяем, есть ли эмиссионные линии выше континуума
+    if np.max(final_normalized[emission_mask]) > 1.0:
+        print(f"  ✓ Эмиссионные линии водорода сохранены (выше континуума)")
 
     return final_normalized, continuum, trust_mask, delta_interp
 
@@ -506,14 +603,6 @@ if plot:
         ax.set_ylim(0.5, 1.05)
 
         ax = axes[1]
-        ax.plot(
-            obs_norm[:, 0],
-            zro_tio_multiply,
-            color="orange",
-            alpha=0.7,
-            label="Multiply (WRONG)",
-            linestyle="--",
-        )
         ax.plot(
             obs_norm[:, 0],
             combined_molecular_spectrum,
