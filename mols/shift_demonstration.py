@@ -4,38 +4,34 @@ import matplotlib.pyplot as plt
 import scienceplots
 
 obs_norm = np.genfromtxt(
-    "/home/delta/miras_1/continuum/6/obs_norm_zro_corrected.txt", skip_header=1
-)
-
-obs_norm = np.genfromtxt(
-    "/home/delta/miras_1/continuum/obs_norm_molecular_corrected.txt", skip_header=1
+    "/home/delta/looks_the_same/obs_norm_molecular_corrected.txt", skip_header=1
 )
 
 
 zro_spectrum = np.genfromtxt(
-    "/home/delta/miras_1/continuum/zro_normalized.txt", skip_header=1
+    "/home/delta/looks_the_same/zro_normalized.txt", skip_header=1
 )
 tio_spectrum = np.genfromtxt(
-    "/home/delta/miras_1/continuum/tio_normalized.txt", skip_header=1
+    "/home/delta/looks_the_same/tio_normalized.txt", skip_header=1
 )
 
 combo_spectrum = np.genfromtxt(
-    "/home/delta/miras_1/continuum/molecular_combined.txt", skip_header=1
+    "/home/delta/looks_the_same/molecular_combined.txt", skip_header=1
 )
 
 synth_spectrum = np.genfromtxt(
-    "/home/delta/miras_1/continuum/2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters/0.spec"
+    "/home/delta/looks_the_same/2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters/0.spec"
 )
 
-# rv = -103.5
-rv = -80.5
-rv_tio = -79
-rv_combo = -80
 
-# for 6 spectra
-# rv = -80.5
-# rv_tio = -79
-# rv_combo = -80
+# for 6 spectra:
+# rv = -79.5 - 1.06
+# rv_tio = -79 - 1.06
+# rv_combo = -80 - 1.06
+
+rv = -79.5 - 1.06
+rv_tio = -79 - 1.06
+rv_combo = -80 - 1.06
 
 
 _, zro_spectrum[:, 0] = pyasl.dopplerShift(
@@ -69,6 +65,23 @@ with plt.style.context(["science", "ieee"]):
         alpha=0.6,
         color="crimson",
         lw=1,
+    )
+    ax[0].plot(
+        tio_spectrum[:, 0],
+        tio_spectrum[:, 1],
+        label=f"TiO shifted on {rv_tio} km/s",
+        ls="-",
+        alpha=0.6,
+        lw=1,
+    )
+    ax[0].plot(
+        combo_spectrum[:, 0],
+        combo_spectrum[:, 1],
+        label=f"Combined spectra TiO and ZrO shifted on {rv_combo} km/s",
+        ls="-",
+        alpha=0.6,
+        lw=1,
+        color="green",
     )
     ax[0].set_xlim((4612, 4679))
 
