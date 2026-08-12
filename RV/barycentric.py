@@ -128,8 +128,6 @@ for i in range(0, 7):
 # plt.show()
 
 
-
-
 for i in range(len(data_arr)):
     fig, ax = plt.subplots()
     ax.plot(data_arr[i][:, 0], data_arr[i][:, 1], label=i + 1)
