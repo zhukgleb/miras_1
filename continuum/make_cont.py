@@ -24,7 +24,7 @@ spectra_content = os.listdir(folder_to_spectra)
 
 
 # CONFIG
-plot = True
+plot = False
 save = True
 folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
 
@@ -75,6 +75,7 @@ obs_norm_p = []
 obs_norm_s = []
 order_bound = []
 
+print(f"Total orders {len(orders)}")
 for order in range(len(orders) - 1):
     x1 = np.mean(orders[order][:, 0])
     order_bound.append((min(orders[order][:, 0]), max(orders[order][:, 0])))
@@ -208,7 +209,7 @@ def normalize_molecular_spectrum(
 def combine_molecular_spectra(obs_wave, molecular_spectra_list, method="multiply"):
     """
     Комбинирует несколько молекулярных спектров
-    
+
     Parameters:
     -----------
     obs_wave : array
@@ -217,7 +218,7 @@ def combine_molecular_spectra(obs_wave, molecular_spectra_list, method="multiply
         Список молекулярных спектров
     method : str
         Метод комбинирования: 'multiply', 'sum', 'min'
-    
+
     Returns:
     --------
     combined_spectrum : array
@@ -225,12 +226,12 @@ def combine_molecular_spectra(obs_wave, molecular_spectra_list, method="multiply
     """
     # Интерполируем все спектры на сетку наблюдений
     interpolated_spectra = []
-    
+
     for wave, spectrum, name in molecular_spectra_list:
         interp = np.interp(obs_wave, wave, spectrum, left=1.0, right=1.0)
         interpolated_spectra.append(interp)
         print(f"  {name}: интерполирован на сетку наблюдений")
-    
+
     # Комбинируем
     if method == "multiply":
         # Перемножение - для независимых поглотителей
@@ -250,7 +251,7 @@ def combine_molecular_spectra(obs_wave, molecular_spectra_list, method="multiply
             combined = np.minimum(combined, spec)
     else:
         raise ValueError(f"Unknown method: {method}")
-    
+
     return combined
 
 
@@ -273,7 +274,7 @@ T_zro = 1500  # K
 column_density_zro = 3e15  # cm^-2
 
 # TiO параметры (отдельные!)
-T_tio = 1800  # K - своя температура для TiO
+T_tio = 1500  # K - своя температура для TiO
 column_density_tio = 5e15  # cm^-2 - своя колонковая концентрация
 
 # ============ ПОЛУЧЕНИЕ НОРМИРОВАННЫХ СПЕКТРОВ ============
@@ -307,7 +308,7 @@ molecular_spectra_list = [
 
 # Комбинируем спектры (перемножение для независимых поглотителей)
 combined_molecular_spectrum = combine_molecular_spectra(
-    obs_norm[:, 0], molecular_spectra_list, method="multiply"
+    obs_norm[:, 0], molecular_spectra_list, method="min"
 )
 
 print("\n=== МОЛЕКУЛЯРНЫЕ ПАРАМЕТРЫ ===")
@@ -501,10 +502,24 @@ if plot:
         ax.legend()
 
         ax = axes[1]
-        ax.plot(obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO")
-        ax.plot(obs_norm[:, 0], tio_norm_obs_interp, color="darkblue", alpha=0.7, label="TiO")
-        ax.plot(obs_norm[:, 0], combined_molecular_spectrum, color="green", alpha=0.5, 
-                linestyle="--", label="Combined")
+        ax.plot(
+            obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO"
+        )
+        ax.plot(
+            obs_norm[:, 0],
+            tio_norm_obs_interp,
+            color="darkblue",
+            alpha=0.7,
+            label="TiO",
+        )
+        ax.plot(
+            obs_norm[:, 0],
+            combined_molecular_spectrum,
+            color="green",
+            alpha=0.5,
+            linestyle="--",
+            label="Combined",
+        )
         ax.axhline(y=0.98, color="black", linestyle=":", label="threshold")
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
@@ -539,8 +554,22 @@ if plot:
         # Показываем вклад каждой молекулы
         zro_abs = 1 - zro_norm_obs_interp
         tio_abs = 1 - tio_norm_obs_interp
-        ax.fill_between(obs_norm[:, 0], 0, zro_abs, alpha=0.3, color="darkred", label="ZrO absorption")
-        ax.fill_between(obs_norm[:, 0], 0, tio_abs, alpha=0.3, color="darkblue", label="TiO absorption")
+        ax.fill_between(
+            obs_norm[:, 0],
+            0,
+            zro_abs,
+            alpha=0.3,
+            color="darkred",
+            label="ZrO absorption",
+        )
+        ax.fill_between(
+            obs_norm[:, 0],
+            0,
+            tio_abs,
+            alpha=0.3,
+            color="darkblue",
+            label="TiO absorption",
+        )
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Absorption depth")
         ax.set_title("Molecular absorption contributions")
@@ -611,7 +640,7 @@ if plot:
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
         ax.legend()
-        ax.set_title("Zoom: ZrO band region (6450-6650 $\AA$)")
+        ax.set_title(r"Zoom: ZrO band region (6450-6650 $\AA$)")
 
         # Область с TiO поглощением
         ax = axes[2]
@@ -642,7 +671,7 @@ if plot:
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
         ax.legend()
-        ax.set_title("Zoom: TiO region (7000-7200 $\AA$)")
+        ax.set_title(r"Zoom: TiO region (7000-7200 $\AA$)")
 
         plt.tight_layout()
 
@@ -695,7 +724,7 @@ if save:
         np.column_stack((zro_wave, zro_norm_spectrum)),
         header="wavelength zro_norm",
     )
-    
+
     np.savetxt(
         "tio_normalized.txt",
         np.column_stack((tio_wave, tio_norm_spectrum)),
@@ -716,7 +745,9 @@ if save:
         f.write(f"TiO: T = {T_tio} K, N = {column_density_tio:.0e} cm^-2\n")
         f.write(f"Метод комбинирования: multiply\n\n")
         f.write("=== РЕЗУЛЬТАТЫ НОРМИРОВКИ ===\n")
-        f.write(f"Number of trusted points: {np.sum(trust_mask)} out of {len(obs_norm)}\n")
+        f.write(
+            f"Number of trusted points: {np.sum(trust_mask)} out of {len(obs_norm)}\n"
+        )
         f.write(f"Max normalized flux: {np.max(obs_norm_corrected):.6f}\n")
         f.write(f"Min normalized flux: {np.min(obs_norm_corrected):.6f}\n")
         f.write(f"Median normalized flux: {np.median(obs_norm_corrected):.6f}\n")

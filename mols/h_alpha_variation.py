@@ -24,7 +24,9 @@ rv_tio_arr = [-81.06, -84, -84, 0, 0, 0, 0]
 # 5 -- норм
 # 6 -- норм
 
-rv_combo_arr = [-90, -90, -70, -84, -90, -74, -82]
+# rv_combo_arr = [-90, -90, -70, -84, -90, -74, -82]
+rv_combo_arr = [-95, -90, -82, -92, -82, -86, -80]
+
 spectra_date = [
     2456141.49514,
     2456258.17083,
@@ -39,7 +41,7 @@ zro_spectrum_arr = []
 tio_spectrum_arr = []
 combo_spectrum_arr = []
 obs_norm_arr = []
-num_start = 3
+num_start = 6
 num_end = 7
 
 for spec_num in range(7):
@@ -129,7 +131,6 @@ with plt.style.context(["science"]):
         )
 
         ax.legend()
-        plt.show()
 
     fig, ax = plt.subplots()
     ax.scatter(spectra_date, rv_combo_arr, label="molecular band speed")

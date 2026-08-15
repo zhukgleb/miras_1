@@ -123,7 +123,7 @@ def read_100(path2file: str, headlen=10, fmtdat="h"):
     data = zeros((ord_num, ord_len), int32)
     for i in range(ord_num):
         data[i] = unpack(fmt_str, bindat.read(bsize * ord_len))
-        data[i] += 10000  # A CRUNCH!!!!!!!
+        # data[i] += 10000  # A CRUNCH!!!!!!!
     return objname, ord_num, ord_len, data
 
 

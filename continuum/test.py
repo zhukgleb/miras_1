@@ -24,7 +24,7 @@ spectra_content = os.listdir(folder_to_spectra)
 
 
 # CONFIG
-plot = True
+plot = False
 save = True
 folder_path = "2026-07-20-13-28-24_0.7248514425106289_LTE_synthetic_spectra_parameters"
 
@@ -37,28 +37,21 @@ spectra_content = [
     "20140417",
     "20140811",
 ]
-
-# rv 6: 35.4
-
 bcvr_arr = [4450.769, 6698.387, -5093.433, -6032.999, 10471.263, -10221.369, 5778.002]
 num = 6
 spectra_path = folder_to_spectra + spectra_content[num] + "/"
-
-
 data = make_txt_from_spectra(spectra_path, True, True)
 _, data[:, 0] = pyasl.dopplerShift(
-    data[:, 0], data[:, 1], bcvr_arr[6] / 1000 + 35.4, edgeHandling="firstlast"
+    data[:, 0], data[:, 1], bcvr_arr[6] / 1000 + 36.5, edgeHandling="firstlast"
 )
 
-fig, ax = plt.subplots()
-ax.plot(data[:, 0], data[:, 1])
 
 orders = split_spectral_orders(data)
-print(f"orders are detect: {len(orders)}")
 synth_data = np.loadtxt("/home/delta/miras_1/mols/synth_all.spec")
 
 
 hdu_list = fits.open("e619020c.fits")
+hdu_list.info()
 
 image_data = hdu_list[0].data
 fit_arr = []
@@ -82,7 +75,7 @@ obs_norm_p = []
 obs_norm_s = []
 order_bound = []
 
-for order in range(len(orders)):
+for order in range(len(orders) - 1):
     x1 = np.mean(orders[order][:, 0])
     order_bound.append((min(orders[order][:, 0]), max(orders[order][:, 0])))
     a, b, c, yn, yn_p = (
@@ -177,6 +170,75 @@ delta_arr_mean = np.mean(delta_arr, axis=0)
 delta_arr_mean_smart = np.mean(delta_arr_smart, axis=0)
 
 
+# ==================== МАСКА ДЛЯ ЭМИССИОННЫХ ЛИНИЙ ВОДОРОДА ====================
+
+def create_emission_line_mask(wavelength, line_centers, half_width=4.0):
+    """
+    Создает маску для исключения эмиссионных линий при фитировании континуума
+    
+    Parameters:
+    -----------
+    wavelength : array
+        Массив длин волн
+    line_centers : list
+        Список центров эмиссионных линий в ангстремах
+    half_width : float
+        Полуширина зоны исключения в ангстремах (по умолчанию 4 Å)
+    
+    Returns:
+    --------
+    mask : boolean array
+        True для точек, которые НЕ являются эмиссионными линиями (можно использовать для фита)
+    emission_mask : boolean array
+        True для точек эмиссионных линий (исключаются из фита)
+    """
+    mask = np.ones(len(wavelength), dtype=bool)  # изначально все точки разрешены
+    
+    for center in line_centers:
+        # Создаем маску для этой линии
+        line_mask = (wavelength >= center - half_width) & (wavelength <= center + half_width)
+        mask = mask & ~line_mask  # исключаем эту область
+    
+    return mask, ~mask
+
+
+# Основные эмиссионные линии водорода в оптическом диапазоне
+hydrogen_lines = {
+    'H_alpha': 6562.8,   # Hα
+    'H_beta': 4861.3,    # Hβ
+    'H_gamma': 4340.5,   # Hγ
+    'H_delta': 4101.7,   # Hδ
+    'H_epsilon': 3970.1, # Hε
+}
+
+# Также можно добавить линии металлов, если нужно
+additional_lines = {
+    'HeI': 5875.6,
+    'NaI': 5890.0,  # Na D линии
+    'NaI': 5895.9,
+}
+
+# Создаем список центров линий, которые хотим исключить
+emission_centers = list(hydrogen_lines.values())
+# Добавляем дополнительные линии, если нужно
+# emission_centers.extend(list(additional_lines.values()))
+
+# Создаем маску
+continuum_mask, emission_mask = create_emission_line_mask(
+    obs_norm[:, 0], 
+    emission_centers, 
+    half_width=4.0  # 4 ангстрема вокруг каждой линии
+)
+
+print(f"\n=== МАСКА ЭМИССИОННЫХ ЛИНИЙ ===")
+print(f"Всего точек в спектре: {len(obs_norm)}")
+print(f"Точек исключено (эмиссионные линии): {np.sum(~continuum_mask)}")
+print(f"Исключенные линии: {list(hydrogen_lines.keys())}")
+print(f"Полуширина исключения: 4.0 Å")
+
+# ==================== РАБОТА С МОЛЕКУЛЯРНЫМИ СПЕКТРАМИ (ZrO и TiO) ====================
+
+
 def planck_function(wavelength, temperature):
     """
     Функция Планка для черного тела
@@ -192,8 +254,7 @@ def normalize_molecular_spectrum(
     mol_wave, mol_cross_section, temp=1500, column_density=1e16
 ):
     """
-    Нормировка молекулярного спектра на черное тело,
-    хуево, но должно работать
+    Нормировка молекулярного спектра на черное тело
     """
     # Оптическая толщина: tau = N * sigma
     optical_depth = column_density * mol_cross_section
@@ -204,9 +265,10 @@ def normalize_molecular_spectrum(
     # Поток с учетом поглощения: I = I0 * exp(-tau)
     transmitted_intensity = bb_intensity * np.exp(-optical_depth)
 
-    # Считаем континуум
+    # Нормировка на континуум
     normalized_spectrum = transmitted_intensity / bb_intensity
-
+    
+    # Также возвращаем оптическую глубину для комбинирования
     return normalized_spectrum, optical_depth, bb_intensity
 
 
@@ -222,17 +284,18 @@ def get_optical_depth_from_normalized(normalized_spectrum):
 
 def combine_molecular_spectra_correct(obs_wave, molecular_spectra_list):
     """
-
-    I_combined = I0 * exp(-(tau1 + tau2 + ...))
+    ПРАВИЛЬНОЕ комбинирование молекулярных спектров через сложение оптических глубин
+    
+    Физика: I_combined = I0 * exp(-(tau1 + tau2 + ...))
     где tau_i = -ln(I_i/I0) - оптическая глубина каждого компонента
-
-    Параметры:
+    
+    Parameters:
     -----------
     obs_wave : array
-        Длина волны
+        Длины волн наблюдений
     molecular_spectra_list : list of tuples (wave, spectrum, name)
-        молекулярные спектры (нормированные)
-
+        Список молекулярных спектров (нормированных)
+    
     Returns:
     --------
     combined_spectrum : array
@@ -243,54 +306,65 @@ def combine_molecular_spectra_correct(obs_wave, molecular_spectra_list):
     # Интерполируем все спектры на сетку наблюдений
     interpolated_spectra = []
     optical_depths = {}
-
+    
     for wave, spectrum, name in molecular_spectra_list:
         interp = np.interp(obs_wave, wave, spectrum, left=1.0, right=1.0)
         interpolated_spectra.append(interp)
-
+        
         # Вычисляем оптическую глубину для этого компонента
         tau = get_optical_depth_from_normalized(interp)
         optical_depths[name] = tau
-
+        
         print(f"  {name}: интерполирован на сетку наблюдений")
         print(f"    Max optical depth: {np.max(tau):.3f}")
         print(f"    Mean optical depth: {np.mean(tau):.3f}")
-
+    
     # Суммируем оптические глубины
     total_optical_depth = np.zeros_like(obs_wave)
     for name, tau in optical_depths.items():
         total_optical_depth += tau
-
+    
     # Вычисляем комбинированный нормированный спектр
     combined_spectrum = np.exp(-total_optical_depth)
-
+    
     return combined_spectrum, optical_depths, total_optical_depth
 
 
+# ============ ЗАГРУЗКА МОЛЕКУЛЯРНЫХ ДАННЫХ ============
+
+# 1. ZrO
 zro_data = np.genfromtxt("/home/delta/exocross/input/ZrO_all.xsec")
 zro_wave = 1e8 / zro_data[:, 0][::-1]
 zro_cross_section = zro_data[:, 1][::-1]
 
+# 2. TiO
 tio_data = np.genfromtxt("/home/delta/exocross/input/TiO_all.xsec")
 tio_wave = 1e8 / tio_data[:, 0][::-1]
 tio_cross_section = tio_data[:, 1][::-1]
 
+# ============ ПАРАМЕТРЫ ДЛЯ КАЖДОЙ МОЛЕКУЛЫ ============
 
-T_zro = 3000
-column_density_zro = 4e15  # cm^-2
+# ZrO параметры
+T_zro = 1500  # K
+column_density_zro = 3e15  # cm^-2
 
-T_tio = 3000
-column_density_tio = 3e15
+# TiO параметры (отдельные!)
+T_tio = 1500  # K - своя температура для TiO
+column_density_tio = 5e15  # cm^-2 - своя колонковая концентрация
 
+# ============ ПОЛУЧЕНИЕ НОРМИРОВАННЫХ СПЕКТРОВ ============
 
+# ZrO спектр (получаем и нормированный, и оптическую глубину)
 zro_norm_spectrum, zro_optical_depth, zro_bb = normalize_molecular_spectrum(
     zro_wave, zro_cross_section, T_zro, column_density_zro
 )
 
+# TiO спектр
 tio_norm_spectrum, tio_optical_depth, tio_bb = normalize_molecular_spectrum(
     tio_wave, tio_cross_section, T_tio, column_density_tio
 )
 
+# Интерполяция на сетку obs_norm
 zro_norm_obs_interp = np.interp(
     obs_norm[:, 0], zro_wave, zro_norm_spectrum, left=1.0, right=1.0
 )
@@ -299,26 +373,29 @@ tio_norm_obs_interp = np.interp(
     obs_norm[:, 0], tio_wave, tio_norm_spectrum, left=1.0, right=1.0
 )
 
+# ============ ПРАВИЛЬНОЕ КОМБИНИРОВАНИЕ ЧЕРЕЗ ОПТИЧЕСКИЕ ГЛУБИНЫ ============
 
+# Список молекулярных спектров для комбинирования
 molecular_spectra_list = [
     (zro_wave, zro_norm_spectrum, "ZrO"),
     (tio_wave, tio_norm_spectrum, "TiO"),
 ]
 
-combined_molecular_spectrum, optical_depths, total_optical_depth = (
-    combine_molecular_spectra_correct(obs_norm[:, 0], molecular_spectra_list)
+# Комбинируем спектры через сложение оптических глубин (физически корректно)
+combined_molecular_spectrum, optical_depths, total_optical_depth = combine_molecular_spectra_correct(
+    obs_norm[:, 0], molecular_spectra_list
 )
 
+# Для проверки: сравниваем с перемножением (неправильный способ)
+zro_tio_multiply = zro_norm_obs_interp * tio_norm_obs_interp
 
 print("\n=== МОЛЕКУЛЯРНЫЕ ПАРАМЕТРЫ ===")
 print(f"ZrO: T = {T_zro} K, N = {column_density_zro:.0e} cm^-2")
 print(f"TiO: T = {T_tio} K, N = {column_density_tio:.0e} cm^-2")
 print(f"Метод комбинирования: сложение оптических глубин (физически корректный)")
 print(f"  I_combined = I0 * exp(-(tau_ZrO + tau_TiO))")
-print(f"\nПроверка:")
-print(f"  Min ZrO spectrum: {np.min(zro_norm_obs_interp):.4f}")
-print(f"  Min TiO spectrum: {np.min(tio_norm_obs_interp):.4f}")
-print(f"  Min combined : {np.min(combined_molecular_spectrum):.4f}")
+
+# ==================== ИСПРАВЛЕННАЯ НОРМИРОВКА С УЧЕТОМ МАСКИ ЭМИССИОННЫХ ЛИНИЙ ====================
 
 
 def normalize_with_delta_and_molecular(
@@ -328,6 +405,7 @@ def normalize_with_delta_and_molecular(
     rep_wave,
     rep_flux,
     delta_arr_mean,
+    continuum_mask,  # НОВЫЙ ПАРАМЕТР: маска для исключения эмиссионных линий
     delta_threshold=0.1,
     molecular_threshold=0.02,
     poly_order=3,
@@ -337,52 +415,9 @@ def normalize_with_delta_and_molecular(
     Нормировка спектра с использованием:
     1. Массива delta для определения доверенных точек (где модели близки к реперу)
     2. Комбинированного молекулярного спектра (ZrO + TiO) для учета поглощения
-    3. Итеративной подгонки континуума
-    4. Эмиссионные линии водорода (H-alpha, H-beta и др.) НЕ влияют на фитирование континуума
+    3. Маски для исключения эмиссионных линий водорода
+    4. Итеративной подгонки континуума с принудительным ограничением flux <= 1
     """
-
-    # ============ ОПРЕДЕЛЕНИЕ ЭМИССИОННЫХ ЛИНИЙ ВОДОРОДА ============
-    # Длины волн основных линий Бальмера в ангстремах
-    hydrogen_lines = {
-        "H_alpha": 6562.8,
-        "H_beta": 4861.3,
-        "H_gamma": 4340.5,
-        "H_delta": 4101.7,
-        "H_epsilon": 3970.1,
-        "H_zeta": 3889.0,
-        "H_eta": 3835.4,
-        "H_theta": 3797.9,
-        "H_iota": 3770.6,
-        "H_kappa": 3750.2,
-        "H_lambda": 3734.4,
-        "H_mu": 3712.0,
-        "H_nu": 3697.2,
-        "H_xi": 3682.8,
-        "H_o": 3670.0,
-    }
-
-    # Ширина зоны вокруг каждой линии (в ангстремах)
-    line_width = 4.0  # ±4 ангстрема
-
-    # Создаем маску для эмиссионных линий
-    emission_mask = np.zeros(len(obs_wave), dtype=bool)
-
-    for line_name, line_wavelength in hydrogen_lines.items():
-        # Находим точки в пределах line_width от линии
-        line_mask = np.abs(obs_wave - line_wavelength) < line_width
-        emission_mask = emission_mask | line_mask
-
-        # Проверяем, есть ли линия в диапазоне
-        if np.sum(line_mask) > 0:
-            print(
-                f"  {line_name}: {line_wavelength:.1f} A - маскировано {np.sum(line_mask)} точек"
-            )
-
-    print(f"\n=== ЭМИССИОННЫЕ ЛИНИИ ===")
-    print(f"Замаскировано {np.sum(emission_mask)} точек в эмиссионных линиях водорода")
-    print(f"Ширина зоны: ±{line_width} A")
-
-    # ============ СОЗДАНИЕ МАСКИ ДОВЕРЕННЫХ ТОЧЕК ============
 
     # Интерполяция delta на длины волн obs
     delta_interp = np.interp(obs_wave, rep_wave, delta_arr_mean, left=1.0, right=1.0)
@@ -390,85 +425,68 @@ def normalize_with_delta_and_molecular(
     # Интерполяция реперного спектра
     rep_interp = np.interp(obs_wave, rep_wave, rep_flux, left=1.0, right=1.0)
 
+    # СОЗДАНИЕ МАСКИ ДОВЕРЕННЫХ ТОЧЕК
     # 1. Точки, где delta мала (модели близки к реперу)
     good_delta_mask = delta_interp < delta_threshold
 
-    # 2. Точки, где молекулярное поглощение слабое (используем комбинированный спектр)
+    # 2. Точки, где молекулярное поглощение слабое
     good_molecular_mask = np.abs(molecular_spectrum - 1.0) < molecular_threshold
 
     # 3. Точки, где реперный спектр близок к континууму (нет сильных линий)
     good_rep_mask = rep_interp > 0.95
 
-    # 4. Исключаем эмиссионные линии водорода
-    # Точки в эмиссионных линиях НЕ должны использоваться для фитирования континуума
-    good_non_emission_mask = ~emission_mask
-
-    # 5. Объединенная маска - точки, которым можно доверять (ИСКЛЮЧАЯ эмиссионные линии)
-    trust_mask = (
-        good_delta_mask & good_molecular_mask & good_rep_mask & good_non_emission_mask
-    )
+    # 4. МАСКА ЭМИССИОННЫХ ЛИНИЙ - исключаем их из фита
+    # continuum_mask уже содержит True для точек, которые можно использовать
+    
+    # Объединенная маска - точки, которым можно доверять И которые не являются эмиссионными линиями
+    trust_mask = good_delta_mask & good_molecular_mask & good_rep_mask & continuum_mask
 
     print(f"\n=== МАСКА ДОВЕРЕННЫХ ТОЧЕК ===")
     print(f"Доверенных точек: {np.sum(trust_mask)} из {len(obs_wave)}")
     print(f"  - По delta: {np.sum(good_delta_mask)}")
     print(f"  - По молекулярному спектру: {np.sum(good_molecular_mask)}")
     print(f"  - По реперу: {np.sum(good_rep_mask)}")
-    print(f"  - Исключено эмиссионных линий: {np.sum(emission_mask)}")
+    print(f"  - По маске эмиссионных линий: {np.sum(continuum_mask)}")
+    print(f"  - Исключено эмиссионных линий: {np.sum(~continuum_mask)}")
 
     if np.sum(trust_mask) < 20:
         print("Предупреждение: слишком мало доверенных точек, расширяем критерии")
-        # Расширяем, но все равно исключаем эмиссионные линии
-        trust_mask = (
-            good_delta_mask | (good_molecular_mask & good_rep_mask)
-        ) & good_non_emission_mask
+        # Расширяем: убираем требование по молекулярному спектру
+        trust_mask = good_delta_mask & good_rep_mask & continuum_mask
         print(f"Доверенных точек после расширения: {np.sum(trust_mask)}")
 
-    # ============ ПОДГОНКА КОНТИНУУМА ============
-
-    # ПЕРВАЯ ИТЕРАЦИЯ: подгонка полинома по доверенным точкам
+    # ПЕРВАЯ ИТЕРАЦИЯ: подгонка континуума по доверенным точкам
     x_fit = obs_wave[trust_mask]
     y_fit = obs_flux[trust_mask]
 
+    # Подгонка полинома
     if len(x_fit) > poly_order:
         coeffs = np.polyfit(x_fit, y_fit, poly_order)
         continuum = np.polyval(coeffs, obs_wave)
-        print(f"\n=== ПОДГОНКА КОНТИНУУМА ===")
-        print(f"Полином {poly_order}-го порядка по {len(x_fit)} точкам")
     else:
         # Если слишком мало точек, используем медиану
         continuum = np.median(obs_flux[trust_mask]) * np.ones_like(obs_wave)
-        print(f"\n=== ПОДГОНКА КОНТИНУУМА ===")
-        print(f"Использована медиана: {np.median(obs_flux[trust_mask]):.4f}")
 
     # Нормировка
     normalized = obs_flux / continuum
 
-    # ============ КОРРЕКЦИЯ КОНТИНУУМА (БЕЗ ТРОГАНИЯ ЭМИССИОННЫХ ЛИНИЙ) ============
-
-    # Принудительная коррекция только для точек НЕ в эмиссионных линиях
-    # Находим точки (не эмиссионные), где normalized > 1
-    mask_above_one = (normalized > 1.0) & ~emission_mask
+    # Принудительное ограничение: убираем значения > 1
+    mask_above_one = normalized > 1.0
 
     if np.sum(mask_above_one) > 0:
-        print(f"\n=== КОРРЕКЦИЯ КОНТИНУУМА ===")
-        print(f"Точек выше 1 (не эмиссионных): {np.sum(mask_above_one)}")
-
-        # Итеративная коррекция
+        # Для точек выше 1, поднимаем континуум
         for iter_num in range(n_iter):
-            # Находим точки (не эмиссионные), где normalized > 1.01
-            mask_high = (normalized > 1.01) & ~emission_mask
+            # Находим точки, где normalized > 1.01 (с небольшим запасом)
+            mask_high = normalized > 1.01
 
             if np.sum(mask_high) == 0:
-                print(f"  Итерация {iter_num + 1}: коррекция не требуется")
                 break
 
-            print(f"  Итерация {iter_num + 1}: точек выше 1.01: {np.sum(mask_high)}")
-
-            # Добавляем эти точки к доверенным
+            # Добавляем эти точки к доверенным с весом, обратным отклонению
             high_wave = obs_wave[mask_high]
             high_flux = obs_flux[mask_high]
 
-            # Объединяем с доверенными точками (но все равно исключаем эмиссионные!)
+            # Объединяем с доверенными точками
             all_wave = np.concatenate([x_fit, high_wave])
             all_flux = np.concatenate([y_fit, high_flux])
 
@@ -482,41 +500,30 @@ def normalize_with_delta_and_molecular(
             # Обновляем нормировку
             normalized_new = obs_flux / continuum_new
 
-            # Проверяем, уменьшилось ли количество точек > 1 (не эмиссионных)
-            new_mask_high = (normalized_new > 1.01) & ~emission_mask
-            if np.sum(new_mask_high) < np.sum(mask_high):
+            # Проверяем, уменьшилось ли количество точек > 1
+            if np.sum(normalized_new > 1.01) < np.sum(mask_high):
                 continuum = continuum_new
                 normalized = normalized_new
             else:
                 break
 
-    # ============ ФИНАЛЬНЫЙ ШАГ ============
-
-    # НЕ ограничиваем эмиссионные линии! Они могут быть выше 1.
-    # Только для не-эмиссионных точек применяем ограничение
+    # Финальная коррекция: гарантируем, что ни одна точка не превышает 1
     final_normalized = normalized.copy()
+    mask_above = final_normalized > 1.0
 
-    # Для не-эмиссионных точек, которые все еще > 1, применяем интерполяцию
-    mask_non_emission_above = (final_normalized > 1.0) & ~emission_mask
+    if np.sum(mask_above) > 0:
+        # Находим индексы точек < 1
+        indices_below = np.where(~mask_above)[0]
 
-    if np.sum(mask_non_emission_above) > 0:
-        print(f"\n=== ФИНАЛЬНАЯ КОРРЕКЦИЯ ===")
-        print(f"Не-эмиссионных точек выше 1: {np.sum(mask_non_emission_above)}")
-
-        # Находим индексы не-эмиссионных точек <= 1
-        indices_good = np.where((~emission_mask) & (final_normalized <= 1.0))[0]
-
-        if len(indices_good) > 1:
-            # Для каждой точки > 1 (не эмиссионной), интерполируем по соседним
-            for i in np.where(mask_non_emission_above)[0]:
-                # Находим ближайшие точки слева и справа с flux <= 1
-                left_idx = indices_good[indices_good < i]
-                right_idx = indices_good[indices_good > i]
+        if len(indices_below) > 1:
+            # Для каждой точки > 1, интерполируем по соседним
+            for i in np.where(mask_above)[0]:
+                left_idx = indices_below[indices_below < i]
+                right_idx = indices_below[indices_below > i]
 
                 if len(left_idx) > 0 and len(right_idx) > 0:
                     left = left_idx[-1]
                     right = right_idx[0]
-                    # Линейная интерполяция
                     weight = (i - left) / (right - left)
                     final_normalized[i] = (1 - weight) * final_normalized[
                         left
@@ -525,40 +532,25 @@ def normalize_with_delta_and_molecular(
                     final_normalized[i] = final_normalized[left_idx[-1]]
                 elif len(right_idx) > 0:
                     final_normalized[i] = final_normalized[right_idx[0]]
-    else:
-        print(f"\n=== ФИНАЛЬНАЯ КОРРЕКЦИЯ ===")
-        print("Не-эмиссионных точек выше 1 не обнаружено")
-
-    # ============ ВЫВОД СТАТИСТИКИ ============
-
-    print(f"\n=== РЕЗУЛЬТАТЫ ===")
-    print(f"Максимальное значение (все точки): {np.max(final_normalized):.4f}")
-    print(
-        f"Максимальное значение (не эмиссионные): {np.max(final_normalized[~emission_mask]):.4f}"
-    )
-    print(
-        f"Максимальное значение (эмиссионные линии): {np.max(final_normalized[emission_mask]):.4f}"
-    )
-
-    # Проверяем, есть ли эмиссионные линии выше континуума
-    if np.max(final_normalized[emission_mask]) > 1.0:
-        print(f"  ✓ Эмиссионные линии водорода сохранены (выше континуума)")
+                else:
+                    final_normalized[i] = 0.99
 
     return final_normalized, continuum, trust_mask, delta_interp
 
 
-# Применяем исправленную нормировку с комбинированным молекулярным спектром
+# Применяем исправленную нормировку с комбинированным молекулярным спектром И маской эмиссионных линий
 obs_norm_corrected, continuum_obs, trust_mask, delta_interp = (
     normalize_with_delta_and_molecular(
         obs_norm[:, 0],
         obs_norm[:, 1],
-        combined_molecular_spectrum,  # используем правильно скомбинированный спектр
+        combined_molecular_spectrum,
         rep_wave,
         rep_flux,
         delta_arr_mean,
+        continuum_mask,  # передаем маску эмиссионных линий
         delta_threshold=0.1,
-        molecular_threshold=0.1,
-        poly_order=4,
+        molecular_threshold=0.02,
+        poly_order=3,
         n_iter=5,
     )
 )
@@ -572,7 +564,7 @@ print(
 )
 
 # Если все еще есть точки > 1, принудительно ограничиваем
-obs_norm_corrected = np.clip(obs_norm_corrected, 0.0, 5)
+obs_norm_corrected = np.clip(obs_norm_corrected, 0.0, 1.0)
 
 # Создаем исправленный спектр
 obs_norm_molecular = np.column_stack((obs_norm[:, 0], obs_norm_corrected))
@@ -581,73 +573,78 @@ obs_norm_molecular = np.column_stack((obs_norm[:, 0], obs_norm_corrected))
 
 if plot:
     with plt.style.context(["science"]):
-        # 1. Сравнение методов комбинирования
+        # 1. Маска эмиссионных линий
         fig, axes = plt.subplots(3, 1, figsize=(12, 10))
-
+        
         ax = axes[0]
-        ax.plot(
-            obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO"
-        )
-        ax.plot(
-            obs_norm[:, 0],
-            tio_norm_obs_interp,
-            color="darkblue",
-            alpha=0.7,
-            label="TiO",
-        )
+        ax.plot(obs_norm[:, 0], obs_norm[:, 1], color='navy', alpha=0.5, label='Original')
+        # Отмечаем исключенные области
+        for center in emission_centers:
+            ax.axvspan(center - 4.0, center + 4.0, alpha=0.2, color='red', label='Excluded region' if center == emission_centers[0] else '')
+        ax.set_xlabel(r"Wavelength, $\AA$")
+        ax.set_ylabel("Flux")
+        ax.set_title("Emission line masks (excluded from continuum fitting)")
+        ax.legend()
+        ax.set_xlim(6000, 7500)
+        
+        ax = axes[1]
+        ax.plot(obs_norm[:, 0], continuum_mask.astype(int), color='green', alpha=0.7)
+        ax.set_xlabel(r"Wavelength, $\AA$")
+        ax.set_ylabel("Mask (1=use, 0=exclude)")
+        ax.set_title("Continuum fitting mask (emission lines excluded)")
+        ax.set_ylim(-0.1, 1.1)
+        
+        ax = axes[2]
+        # Zoom around H-alpha
+        h_alpha_center = 6562.8
+        zoom_mask = (obs_norm[:, 0] >= h_alpha_center - 20) & (obs_norm[:, 0] <= h_alpha_center + 20)
+        ax.plot(obs_norm[:, 0][zoom_mask], obs_norm[:, 1][zoom_mask], color='navy', alpha=0.7, label='Original')
+        ax.axvspan(h_alpha_center - 4.0, h_alpha_center + 4.0, alpha=0.3, color='red', label='Excluded region')
+        ax.axvline(h_alpha_center, color='red', linestyle='--', alpha=0.5)
+        ax.set_xlabel(r"Wavelength, $\AA$")
+        ax.set_ylabel("Flux")
+        ax.set_title("H-alpha line (excluded region: ±4 Å)")
+        ax.legend()
+        
+        plt.tight_layout()
+        
+        # 2. Сравнение методов комбинирования
+        fig, axes = plt.subplots(3, 1, figsize=(12, 10))
+        
+        ax = axes[0]
+        ax.plot(obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO")
+        ax.plot(obs_norm[:, 0], tio_norm_obs_interp, color="darkblue", alpha=0.7, label="TiO")
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
         ax.set_title("Individual molecular spectra")
         ax.legend()
         ax.set_ylim(0.5, 1.05)
-
+        
         ax = axes[1]
-        ax.plot(
-            obs_norm[:, 0],
-            combined_molecular_spectrum,
-            color="green",
-            alpha=0.8,
-            label="Correct (optical depths sum)",
-            linewidth=2,
-        )
+        ax.plot(obs_norm[:, 0], zro_tio_multiply, color="orange", alpha=0.7, 
+                label="Multiply (WRONG)", linestyle="--")
+        ax.plot(obs_norm[:, 0], combined_molecular_spectrum, color="green", alpha=0.8, 
+                label="Correct (optical depths sum)", linewidth=2)
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Combined flux")
         ax.set_title("Comparison of combination methods")
         ax.legend()
         ax.set_ylim(0.5, 1.05)
-
+        
         ax = axes[2]
         # Показываем оптические глубины
-        ax.plot(
-            obs_norm[:, 0],
-            optical_depths["ZrO"],
-            color="darkred",
-            alpha=0.7,
-            label="ZrO tau",
-        )
-        ax.plot(
-            obs_norm[:, 0],
-            optical_depths["TiO"],
-            color="darkblue",
-            alpha=0.7,
-            label="TiO tau",
-        )
-        ax.plot(
-            obs_norm[:, 0],
-            total_optical_depth,
-            color="green",
-            alpha=0.8,
-            label="Total tau",
-            linewidth=2,
-        )
+        ax.plot(obs_norm[:, 0], optical_depths["ZrO"], color="darkred", alpha=0.7, label="ZrO tau")
+        ax.plot(obs_norm[:, 0], optical_depths["TiO"], color="darkblue", alpha=0.7, label="TiO tau")
+        ax.plot(obs_norm[:, 0], total_optical_depth, color="green", alpha=0.8, 
+                label="Total tau", linewidth=2)
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Optical depth")
         ax.set_title("Optical depths (tau = -ln(I/I0))")
         ax.legend()
-
+        
         plt.tight_layout()
-
-        # 2. Маска доверенных точек и молекулярные спектры
+        
+        # 3. Маска доверенных точек и молекулярные спектры
         fig, axes = plt.subplots(3, 1, figsize=(12, 12))
 
         ax = axes[0]
@@ -659,24 +656,10 @@ if plot:
         ax.legend()
 
         ax = axes[1]
-        ax.plot(
-            obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO"
-        )
-        ax.plot(
-            obs_norm[:, 0],
-            tio_norm_obs_interp,
-            color="darkblue",
-            alpha=0.7,
-            label="TiO",
-        )
-        ax.plot(
-            obs_norm[:, 0],
-            combined_molecular_spectrum,
-            color="green",
-            alpha=0.8,
-            label="Combined (correct)",
-            linewidth=2,
-        )
+        ax.plot(obs_norm[:, 0], zro_norm_obs_interp, color="darkred", alpha=0.7, label="ZrO")
+        ax.plot(obs_norm[:, 0], tio_norm_obs_interp, color="darkblue", alpha=0.7, label="TiO")
+        ax.plot(obs_norm[:, 0], combined_molecular_spectrum, color="green", alpha=0.8, 
+                label="Combined (correct)", linewidth=2)
         ax.axhline(y=0.98, color="black", linestyle=":", label="threshold")
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
@@ -703,14 +686,19 @@ if plot:
             linestyle="--",
             label="Continuum fit",
         )
+        # Отмечаем исключенные эмиссионные линии
+        for center in emission_centers:
+            if 6000 < center < 7500:  # только видимые на графике
+                ax.axvspan(center - 4.0, center + 4.0, alpha=0.1, color='orange')
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Flux")
-        ax.set_title("Trusted points for continuum fitting")
+        ax.set_title("Trusted points for continuum fitting (emission lines excluded)")
         ax.legend()
+        ax.set_xlim(6000, 7500)
 
         plt.tight_layout()
 
-        # 3. Сравнение спектров
+        # 4. Сравнение спектров
         fig, axes = plt.subplots(3, 1, figsize=(12, 12))
 
         # Полный спектр
@@ -744,7 +732,7 @@ if plot:
         ax.legend()
         ax.set_title("Full spectrum comparison (ZrO + TiO)")
 
-        # Область с сильным молекулярным поглощением (ZrO)
+        # Область с H-alpha линией
         ax = axes[1]
         ax.plot(
             obs_norm[:, 0],
@@ -768,12 +756,14 @@ if plot:
             linestyle="--",
         )
         ax.axhline(y=1.0, color="black", linestyle="-", linewidth=0.5)
-        ax.set_xlim(6450, 6650)
-        ax.set_ylim(0, 1.1)
+        # Отмечаем исключенную область H-alpha
+        ax.axvspan(6562.8 - 4.0, 6562.8 + 4.0, alpha=0.2, color='orange', label='Excluded H_alpha region')
+        ax.set_xlim(6540, 6590)
+        ax.set_ylim(0.8, 1.1)
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
         ax.legend()
-        ax.set_title("Zoom: ZrO band region (6450-6650 $\AA$)")
+        ax.set_title("H-alpha region (excluded from continuum fitting)")
 
         # Область с TiO поглощением
         ax = axes[2]
@@ -804,11 +794,11 @@ if plot:
         ax.set_xlabel(r"Wavelength, $\AA$")
         ax.set_ylabel("Normalized flux")
         ax.legend()
-        ax.set_title("Zoom: TiO region (7000-7200 $\AA$)")
+        ax.set_title(r"Zoom: TiO region (7000-7200 $\AA$)")
 
         plt.tight_layout()
 
-        # 4. Гистограмма распределения
+        # 5. Гистограмма распределения
         fig, ax = plt.subplots(figsize=(8, 5))
         ax.hist(
             obs_norm_corrected, bins=50, alpha=0.7, color="crimson", edgecolor="black"
@@ -851,13 +841,20 @@ if save:
         header="wavelength trust_mask",
     )
 
+    # Сохраняем маску эмиссионных линий
+    np.savetxt(
+        "emission_line_mask.txt",
+        np.column_stack((obs_norm[:, 0], continuum_mask.astype(int))),
+        header="wavelength continuum_mask (1=use, 0=exclude emission lines)",
+    )
+
     # Сохраняем отдельные молекулярные спектры
     np.savetxt(
         "zro_normalized.txt",
         np.column_stack((zro_wave, zro_norm_spectrum)),
         header="wavelength zro_norm",
     )
-
+    
     np.savetxt(
         "tio_normalized.txt",
         np.column_stack((tio_wave, tio_norm_spectrum)),
@@ -870,18 +867,14 @@ if save:
         np.column_stack((obs_norm[:, 0], combined_molecular_spectrum)),
         header="wavelength combined_molecular_spectrum (ZrO+TiO, correct combination)",
     )
-
+    
     # Сохраняем оптические глубины
     np.savetxt(
         "optical_depths.txt",
-        np.column_stack(
-            (
-                obs_norm[:, 0],
-                optical_depths["ZrO"],
-                optical_depths["TiO"],
-                total_optical_depth,
-            )
-        ),
+        np.column_stack((obs_norm[:, 0], 
+                        optical_depths["ZrO"], 
+                        optical_depths["TiO"], 
+                        total_optical_depth)),
         header="wavelength tau_ZrO tau_TiO tau_total",
     )
 
@@ -890,14 +883,15 @@ if save:
         f.write("=== МОЛЕКУЛЯРНЫЕ ПАРАМЕТРЫ ===\n")
         f.write(f"ZrO: T = {T_zro} K, N = {column_density_zro:.0e} cm^-2\n")
         f.write(f"TiO: T = {T_tio} K, N = {column_density_tio:.0e} cm^-2\n")
-        f.write(
-            "Метод комбинирования: сложение оптических глубин (физически корректный)\n"
-        )
+        f.write("Метод комбинирования: сложение оптических глубин (физически корректный)\n")
         f.write("  I_combined = I0 * exp(-(tau_ZrO + tau_TiO))\n\n")
+        f.write("=== МАСКА ЭМИССИОННЫХ ЛИНИЙ ===\n")
+        f.write(f"Исключенные линии: {list(hydrogen_lines.keys())}\n")
+        f.write(f"Центры линий: {list(hydrogen_lines.values())} Å\n")
+        f.write(f"Полуширина исключения: 4.0 Å\n")
+        f.write(f"Всего исключено точек: {np.sum(~continuum_mask)} из {len(obs_norm)}\n\n")
         f.write("=== РЕЗУЛЬТАТЫ НОРМИРОВКИ ===\n")
-        f.write(
-            f"Number of trusted points: {np.sum(trust_mask)} out of {len(obs_norm)}\n"
-        )
+        f.write(f"Number of trusted points: {np.sum(trust_mask)} out of {len(obs_norm)}\n")
         f.write(f"Max normalized flux: {np.max(obs_norm_corrected):.6f}\n")
         f.write(f"Min normalized flux: {np.min(obs_norm_corrected):.6f}\n")
         f.write(f"Median normalized flux: {np.median(obs_norm_corrected):.6f}\n")
